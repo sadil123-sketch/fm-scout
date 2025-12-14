@@ -2935,6 +2935,7 @@ const visibleAttrGroups = defaultAttrGroups;
   const HeaderMeta = () => (
     <div className={`flex items-center gap-3 ${muted} text-sm mb-4 flex-wrap`}>
       <span>{age} years old</span>
+      <span className={`text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>({formatISODate(player.dob)})</span>
       <span className="w-1 h-1 rounded-full bg-current" />
       <span>{player.positionsLabel || player.pos}</span>
       <span className="w-1 h-1 rounded-full bg-current" />
@@ -3234,10 +3235,6 @@ const visibleAttrGroups = defaultAttrGroups;
                     </div>
                   );
                 })()}
-                <div className={`mt-4 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-center justify-between`}>
-                  <div className={`text-xs ${muted}`}>DOB</div>
-                  <div className={`text-xs ${text}`}>{formatISODate(player.dob)}</div>
-                </div>
               </Card>
             </div>
           </div>
