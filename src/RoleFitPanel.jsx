@@ -117,11 +117,9 @@ function BestRoleCard({ label, role, fit }) {
   
   return (
     <div className={`rounded-xl border ${colors.border} ${colors.bg} p-4`}>
-      <div className="text-xs text-zinc-400 mb-1">{label}</div>
-      <div className="font-semibold text-white">{role.displayName}</div>
-      <div className="flex items-center gap-2 mt-2">
-        <span className={`text-2xl font-bold ${colors.text}`}>{fit.percentage}%</span>
-        <TierBadge tier={fit.tier} percentage={fit.percentage} />
+      <div className="text-xs text-zinc-400 mb-2">{label}</div>
+      <div className={`font-semibold text-white text-lg`}>
+        {role.displayName} - <span className={colors.text}>{fit.percentage}%</span> - {fit.tier}
       </div>
     </div>
   );
