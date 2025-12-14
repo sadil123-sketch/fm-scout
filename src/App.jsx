@@ -286,6 +286,93 @@ const GKIcon = ({ size = 16, className = '' }) => (
   </span>
 );
 
+// ============================================
+// Position Map for Football Pitch Visualization
+// ============================================
+const POSITION_MAP = {
+  'GK': { x: 50, y: 90, label: 'Goalkeeper', shortLabel: 'GK' },
+  'D(L)': { x: 15, y: 75, label: 'Defender (Left)', shortLabel: 'DL' },
+  'D(C)': { x: 50, y: 75, label: 'Defender (Centre)', shortLabel: 'DC' },
+  'D(R)': { x: 85, y: 75, label: 'Defender (Right)', shortLabel: 'DR' },
+  'WB(L)': { x: 8, y: 58, label: 'Wing Back (Left)', shortLabel: 'WBL' },
+  'WB(R)': { x: 92, y: 58, label: 'Wing Back (Right)', shortLabel: 'WBR' },
+  'DM': { x: 50, y: 55, label: 'Defensive Midfielder', shortLabel: 'DM' },
+  'M(L)': { x: 20, y: 42, label: 'Midfielder (Left)', shortLabel: 'ML' },
+  'M(C)': { x: 50, y: 42, label: 'Midfielder (Centre)', shortLabel: 'MC' },
+  'M(R)': { x: 80, y: 42, label: 'Midfielder (Right)', shortLabel: 'MR' },
+  'AM(L)': { x: 20, y: 28, label: 'Attacking Midfielder (Left)', shortLabel: 'AML' },
+  'AM(C)': { x: 50, y: 28, label: 'Attacking Midfielder (Centre)', shortLabel: 'AMC' },
+  'AM(R)': { x: 80, y: 28, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
+  'ST(C)': { x: 50, y: 12, label: 'Striker', shortLabel: 'ST' },
+};
+
+const getPositionColor = (rating) => {
+  if (rating >= 15) return { bg: 'bg-emerald-500', border: 'border-emerald-400', text: 'text-white' };
+  if (rating >= 10) return { bg: 'bg-yellow-500', border: 'border-yellow-400', text: 'text-slate-900' };
+  if (rating >= 5) return { bg: 'bg-orange-500', border: 'border-orange-400', text: 'text-white' };
+  return { bg: 'bg-slate-600', border: 'border-slate-500', text: 'text-slate-300' };
+};
+
+const FootballPitch = ({ positionRatings = {}, selectedPosition, onSelectPosition, dark }) => {
+  return (
+    <div className="relative w-full aspect-[3/4] bg-gradient-to-b from-emerald-700 to-emerald-800 rounded-xl overflow-hidden border border-emerald-600/50">
+      {/* Pitch markings */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 133" preserveAspectRatio="xMidYMid meet">
+        {/* Outer border */}
+        <rect x="2" y="2" width="96" height="129" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        
+        {/* Center line */}
+        <line x1="2" y1="66.5" x2="98" y2="66.5" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        
+        {/* Center circle */}
+        <circle cx="50" cy="66.5" r="12" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <circle cx="50" cy="66.5" r="0.8" fill="rgba(255,255,255,0.3)" />
+        
+        {/* Top penalty area */}
+        <rect x="20" y="2" width="60" height="22" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <rect x="32" y="2" width="36" height="8" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <circle cx="50" cy="16" r="0.8" fill="rgba(255,255,255,0.3)" />
+        
+        {/* Bottom penalty area */}
+        <rect x="20" y="109" width="60" height="22" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <rect x="32" y="123" width="36" height="8" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <circle cx="50" cy="117" r="0.8" fill="rgba(255,255,255,0.3)" />
+      </svg>
+      
+      {/* Position markers */}
+      {Object.entries(POSITION_MAP).map(([posKey, pos]) => {
+        const rating = positionRatings[posKey] ?? 0;
+        const colors = getPositionColor(rating);
+        const isSelected = selectedPosition === posKey;
+        
+        return (
+          <button
+            key={posKey}
+            onClick={() => onSelectPosition?.(posKey)}
+            className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${
+              isSelected ? 'scale-125 z-10' : 'hover:scale-110'
+            }`}
+            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+            title={`${pos.label}: ${rating}`}
+          >
+            <div className={`
+              flex flex-col items-center justify-center
+              w-10 h-10 rounded-full
+              ${colors.bg} ${colors.text}
+              border-2 ${isSelected ? 'border-white ring-2 ring-white/50' : colors.border}
+              shadow-lg font-bold text-xs
+              cursor-pointer
+            `}>
+              <span className="text-[10px] font-semibold">{pos.shortLabel}</span>
+              <span className="text-[9px] opacity-90">{rating > 0 ? rating : '-'}</span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 // Deterministic pseudo-random 0..1 from string
 const hash01 = (str) => {
   let h = 2166136261;
@@ -2981,121 +3068,137 @@ const visibleAttrGroups = defaultAttrGroups;
   </div>
 )}
 
-        {activeTab === 'positions' && (
-          <div className="grid grid-cols-3 gap-5">
-            <Card dark={dark} className="p-5 col-span-2">
-              <div className="flex items-start justify-between mb-4 gap-3">
-                <div>
-                  <h3 className={`font-semibold ${text}`}>Positions & Role Fit</h3>
-                  <div className={`text-xs ${muted} mt-1`}>Select a position to filter role suggestions. Apply a role to update the Role Fit panel.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="default" size="sm" dark={dark}>{activeRoleGroup}</Badge>
-                  <Badge variant="primary" size="sm">Current {roleScore.total}</Badge>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                {positionsList.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setSelectedPosition(p)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
-                      (selectedPosition || activePosLabel) === p
-                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-                        : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-
-              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} mb-4`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className={`text-xs ${muted}`}>Selected position</div>
-                    <div className={`text-sm font-semibold ${text}`}>{activePosLabel}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-xs ${muted}`}>Role Fit</div>
-                    <div className={`text-sm font-semibold ${text}`}>{roleMode === 'pair' ? `${roleScore.ip} / ${roleScore.oop}` : `${roleScore.ip} IP`}</div>
-                  </div>
-                </div>
-              </div>
-
-              <h4 className={`text-sm font-semibold ${text} mb-3`}>Role recommendations (by current packs + mix)</h4>
-              <div className="space-y-2">
-                {roleRecommendations.length === 0 ? (
-                  <div className={`text-sm ${muted}`}>No roles mapped for this position group yet (prototype subset).</div>
-                ) : roleRecommendations.map((r) => (
-                  <div key={r.role.id} className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} flex items-center gap-3`}>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium ${text} truncate`}>{r.role.name}</div>
-                      <div className={`text-xs ${muted} mt-0.5`}>Score {r.score} • Δ current {r.deltaVsCurrent >= 0 ? `+${r.deltaVsCurrent}` : r.deltaVsCurrent} • Δ base {r.deltaVsBase >= 0 ? `+${r.deltaVsBase}` : r.deltaVsBase}</div>
-                      <div className="mt-2"><ProgressBar value={r.score} max={100} variant="primary" size="sm" /></div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        dark={dark}
-                        onClick={() => {
-                          setIpRoleId(r.role.id);
-                          toast('success', 'IP role set', `${r.role.name} applied as IP role.`);
-                        }}
-                      >
-                        Set IP
-                      </Button>
-
-                      {roleMode === 'pair' && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          dark={dark}
-                          onClick={() => {
-                            setIpRoleId(r.role.id);
-                            setOopRoleId(r.role.id);
-                            toast('success', 'Role pair set', `${r.role.name} applied to IP + OOP (prototype).`);
-                          }}
+        {activeTab === 'positions' && (() => {
+          const positionRatings = player.positionRatings || {
+            'GK': isGoalkeeperPlayer(player) ? 18 : 1,
+            'D(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DL`) * 8),
+            'D(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DC`) * 8),
+            'D(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DR`) * 8),
+            'WB(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(8 + hash01(`${player.id}:WBL`) * 10),
+            'WB(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(8 + hash01(`${player.id}:WBR`) * 10),
+            'DM': isGoalkeeperPlayer(player) ? 1 : Math.round(8 + hash01(`${player.id}:DM`) * 10),
+            'M(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:ML`) * 8),
+            'M(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:MC`) * 8),
+            'M(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:MR`) * 8),
+            'AM(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(12 + hash01(`${player.id}:AML`) * 8),
+            'AM(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(12 + hash01(`${player.id}:AMC`) * 8),
+            'AM(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(12 + hash01(`${player.id}:AMR`) * 8),
+            'ST(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:ST`) * 10),
+          };
+          
+          const leftFoot = player.leftFoot ?? Math.round(10 + hash01(`${player.id}:LF`) * 10);
+          const rightFoot = player.rightFoot ?? Math.round(10 + hash01(`${player.id}:RF`) * 10);
+          
+          const preferredMoves = player.preferredMoves || [
+            'Runs With Ball Often',
+            'Tries Killer Balls Often',
+            'Gets Into Opposition Area',
+          ].filter(() => hash01(`${player.id}:move${Math.random()}`) > 0.3);
+          
+          const sortedPositions = Object.entries(positionRatings)
+            .map(([pos, rating]) => ({ pos, rating, label: POSITION_MAP[pos]?.label || pos }))
+            .sort((a, b) => b.rating - a.rating);
+          
+          const selectedPosData = POSITION_MAP[selectedPosition] || null;
+          
+          return (
+            <div className="grid grid-cols-2 gap-5">
+              {/* Left: Overview Panel */}
+              <Card dark={dark} className="p-5">
+                <h3 className={`font-semibold ${text} mb-4`}>Overview</h3>
+                
+                {/* Positions List */}
+                <div className="mb-5">
+                  <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-2`}>Positions</div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {sortedPositions.map(({ pos, rating, label }) => {
+                      const colors = getPositionColor(rating);
+                      return (
+                        <button
+                          key={pos}
+                          onClick={() => setSelectedPosition(pos)}
+                          className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
+                            selectedPosition === pos 
+                              ? 'bg-blue-500/15 border border-blue-500/30' 
+                              : `${dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-100'}`
+                          }`}
                         >
-                          Set Pair
-                        </Button>
-                      )}
+                          <span className={`text-sm ${text}`}>{label}</span>
+                          <span className={`text-sm font-bold px-2 py-0.5 rounded ${colors.bg} ${colors.text}`}>
+                            {rating}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Feet Section */}
+                <div className="mb-5">
+                  <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-2`}>Feet</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                      <div className={`text-xs ${muted}`}>Left Foot</div>
+                      <div className={`text-lg font-bold ${leftFoot >= 15 ? 'text-emerald-400' : leftFoot >= 10 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                        {leftFoot}
+                      </div>
+                    </div>
+                    <div className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                      <div className={`text-xs ${muted}`}>Right Foot</div>
+                      <div className={`text-lg font-bold ${rightFoot >= 15 ? 'text-emerald-400' : rightFoot >= 10 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                        {rightFoot}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-
-              <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-start gap-3`}>
-                <Info size={16} className="text-blue-500 mt-0.5" />
-                <div>
-                  <div className={`text-sm font-semibold ${text}`}>How this works</div>
-                  <div className={`text-xs ${muted} mt-1`}>Scores are computed from the FM26 Role weights + your Modifier Packs. This is the same engine used by Search “Role Fit”.</div>
                 </div>
-              </div>
-            </Card>
-
-            <Card dark={dark} className="p-5">
-              <h3 className={`font-semibold ${text} mb-4`}>Quick actions</h3>
-              <div className="space-y-2">
-                <button onClick={openShortlistModal} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
-                  <Plus size={16} className="text-blue-500" />
-                  <span className={`text-sm font-medium ${text}`}>{isShortlisted ? 'Edit shortlist' : 'Add to shortlist'}</span>
-                </button>
-                <button onClick={toggleCompare} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
-                  <GitCompare size={16} className="text-blue-500" />
-                  <span className={`text-sm font-medium ${text}`}>{compared ? 'Remove from compare' : 'Add to compare'}</span>
-                </button>
-                <button onClick={() => setShowHistoryModal(true)} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
-                  <History size={16} className="text-blue-500" />
-                  <span className={`text-sm font-medium ${text}`}>Create history point</span>
-                </button>
-              </div>
-            </Card>
-          </div>
-        )}
+                
+                {/* Preferred Moves */}
+                <div>
+                  <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-2`}>Preferred Moves</div>
+                  {preferredMoves.length > 0 ? (
+                    <div className="space-y-1">
+                      {preferredMoves.map((move, i) => (
+                        <div key={i} className={`flex items-center gap-2 py-1.5 px-3 rounded-lg ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                          <Zap size={12} className="text-amber-400" />
+                          <span className={`text-sm ${text}`}>{move}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`text-sm ${muted} italic`}>No preferred moves</div>
+                  )}
+                </div>
+              </Card>
+              
+              {/* Right: Football Pitch */}
+              <Card dark={dark} className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`font-semibold ${text}`}>Positions</h3>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-500"></span> 15+</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500"></span> 10-14</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500"></span> 5-9</span>
+                  </div>
+                </div>
+                
+                <FootballPitch 
+                  positionRatings={positionRatings}
+                  selectedPosition={selectedPosition}
+                  onSelectPosition={setSelectedPosition}
+                  dark={dark}
+                />
+                
+                {selectedPosData && (
+                  <div className={`mt-4 p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                    <div className={`text-xs ${muted}`}>Selected</div>
+                    <div className={`text-sm font-semibold ${text}`}>{selectedPosData.label}</div>
+                    <div className={`text-xs ${muted} mt-1`}>Rating: {positionRatings[selectedPosition]}</div>
+                  </div>
+                )}
+              </Card>
+            </div>
+          );
+        })()}
 
 
         {activeTab === 'transfer' && (
