@@ -8,6 +8,8 @@ import {
   Loader2, CheckCircle2, XCircle, Save, Upload, FolderOpen, Layout, Grid,
   Columns, Table, Tag, RotateCcw, Edit3, Trash2, UserPlus, CheckSquare, Copy
 } from 'lucide-react';
+import { getRolesByPhaseAndGroup, ROLE_DEFINITIONS_FM26 } from './fm26RoleDefinitions.js';
+import { computeRoleFit, DEFAULT_RATING_ENGINE_SETTINGS } from './roleFit.js';
 
 // ============================================
 // Design System
@@ -290,85 +292,161 @@ const GKIcon = ({ size = 16, className = '' }) => (
 // Position Map for Football Pitch Visualization
 // ============================================
 const POSITION_MAP = {
-  'GK': { x: 50, y: 90, label: 'Goalkeeper', shortLabel: 'GK' },
-  'D(L)': { x: 15, y: 75, label: 'Defender (Left)', shortLabel: 'DL' },
-  'D(C)': { x: 50, y: 75, label: 'Defender (Centre)', shortLabel: 'DC' },
-  'D(R)': { x: 85, y: 75, label: 'Defender (Right)', shortLabel: 'DR' },
+  'GK': { x: 50, y: 92, label: 'Goalkeeper', shortLabel: 'GK' },
+  'D(L)': { x: 20, y: 78, label: 'Defender (Left)', shortLabel: 'DL' },
+  'D(C)': { x: 50, y: 78, label: 'Defender (Centre)', shortLabel: 'DC' },
+  'D(R)': { x: 80, y: 78, label: 'Defender (Right)', shortLabel: 'DR' },
   'WB(L)': { x: 8, y: 58, label: 'Wing Back (Left)', shortLabel: 'WBL' },
   'WB(R)': { x: 92, y: 58, label: 'Wing Back (Right)', shortLabel: 'WBR' },
-  'DM': { x: 50, y: 55, label: 'Defensive Midfielder', shortLabel: 'DM' },
-  'M(L)': { x: 20, y: 42, label: 'Midfielder (Left)', shortLabel: 'ML' },
-  'M(C)': { x: 50, y: 42, label: 'Midfielder (Centre)', shortLabel: 'MC' },
-  'M(R)': { x: 80, y: 42, label: 'Midfielder (Right)', shortLabel: 'MR' },
-  'AM(L)': { x: 20, y: 28, label: 'Attacking Midfielder (Left)', shortLabel: 'AML' },
+  'DM': { x: 50, y: 58, label: 'Defensive Midfielder', shortLabel: 'DM' },
+  'M(L)': { x: 25, y: 45, label: 'Midfielder (Left)', shortLabel: 'ML' },
+  'M(C)': { x: 50, y: 45, label: 'Midfielder (Centre)', shortLabel: 'MC' },
+  'M(R)': { x: 75, y: 45, label: 'Midfielder (Right)', shortLabel: 'MR' },
+  'AM(L)': { x: 25, y: 28, label: 'Attacking Midfielder (Left)', shortLabel: 'AML' },
   'AM(C)': { x: 50, y: 28, label: 'Attacking Midfielder (Centre)', shortLabel: 'AMC' },
-  'AM(R)': { x: 80, y: 28, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
+  'AM(R)': { x: 75, y: 28, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
   'ST(C)': { x: 50, y: 12, label: 'Striker', shortLabel: 'ST' },
 };
 
+const POSITION_TO_GROUP = {
+  'GK': 'GK',
+  'D(L)': 'D-LR',
+  'D(C)': 'D-C',
+  'D(R)': 'D-LR',
+  'WB(L)': 'WB-LR',
+  'WB(R)': 'WB-LR',
+  'DM': 'DM',
+  'M(L)': 'M-LR',
+  'M(C)': 'M-C',
+  'M(R)': 'M-LR',
+  'AM(L)': 'AM-LR',
+  'AM(C)': 'AM-C',
+  'AM(R)': 'AM-LR',
+  'ST(C)': 'ST',
+};
+
+const getRoleFitColor = (score) => {
+  if (score >= 15) return { text: 'text-emerald-400', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' };
+  if (score >= 12) return { text: 'text-green-400', bg: 'bg-green-500/15', border: 'border-green-500/30' };
+  if (score >= 9) return { text: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/30' };
+  if (score >= 6) return { text: 'text-orange-400', bg: 'bg-orange-500/15', border: 'border-orange-500/30' };
+  return { text: 'text-slate-400', bg: 'bg-slate-500/15', border: 'border-slate-500/30' };
+};
+
+const CAMEL_TO_FM26_ATTR_MAP = {
+  crossing: 'Crossing', dribbling: 'Dribbling', finishing: 'Finishing', firstTouch: 'First Touch',
+  heading: 'Heading', longShots: 'Long Shots', marking: 'Marking', passing: 'Passing',
+  tackling: 'Tackling', technique: 'Technique', corners: 'Corners', freeKickTaking: 'Free Kick Taking',
+  longThrows: 'Long Throws', penaltyTaking: 'Penalty Taking', aggression: 'Aggression',
+  anticipation: 'Anticipation', bravery: 'Bravery', composure: 'Composure', concentration: 'Concentration',
+  decisions: 'Decisions', determination: 'Determination', flair: 'Flair', leadership: 'Leadership',
+  offTheBall: 'Off the Ball', positioning: 'Positioning', teamwork: 'Team Work', vision: 'Vision',
+  workRate: 'Work Rate', acceleration: 'Acceleration', agility: 'Agility', balance: 'Balance',
+  jumpingReach: 'Jumping', naturalFitness: 'Natural Fitness', pace: 'Pace', stamina: 'Stamina',
+  strength: 'Strength', aerialReach: 'Aerial Reach', commandOfArea: 'Command of Area',
+  communication: 'Communication', eccentricity: 'Eccentricity', handling: 'Handling', kicking: 'Kicking',
+  oneOnOnes: 'One on Ones', punching: 'Punching', reflexes: 'Reflexes', rushingOut: 'Rushing Out',
+  throwing: 'Throwing',
+};
+
+const convertAttrsToFM26Format = (camelAttrs) => {
+  const fm26Attrs = {};
+  for (const [camelKey, value] of Object.entries(camelAttrs || {})) {
+    const fm26Key = CAMEL_TO_FM26_ATTR_MAP[camelKey];
+    if (fm26Key) {
+      fm26Attrs[fm26Key] = value;
+    }
+  }
+  return fm26Attrs;
+};
+
 const getPositionColor = (rating) => {
-  if (rating >= 15) return { bg: 'bg-emerald-500', border: 'border-emerald-400', text: 'text-white' };
-  if (rating >= 10) return { bg: 'bg-yellow-500', border: 'border-yellow-400', text: 'text-slate-900' };
-  if (rating >= 5) return { bg: 'bg-orange-500', border: 'border-orange-400', text: 'text-white' };
-  return { bg: 'bg-slate-600', border: 'border-slate-500', text: 'text-slate-300' };
+  if (rating >= 15) return { bg: '#22c55e', border: '#16a34a', text: '#fff' };
+  if (rating >= 10) return { bg: '#eab308', border: '#ca8a04', text: '#1e293b' };
+  if (rating >= 5) return { bg: '#f97316', border: '#ea580c', text: '#fff' };
+  return { bg: '#475569', border: '#334155', text: '#94a3b8' };
 };
 
 const FootballPitch = ({ positionRatings = {}, selectedPosition, onSelectPosition, dark }) => {
   return (
-    <div className="relative w-full aspect-[3/4] bg-gradient-to-b from-emerald-700 to-emerald-800 rounded-xl overflow-hidden border border-emerald-600/50">
-      {/* Pitch markings */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 133" preserveAspectRatio="xMidYMid meet">
+    <div className="relative w-full" style={{ paddingBottom: '130%' }}>
+      <svg 
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 100 130"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* Pitch background */}
+        <rect x="0" y="0" width="100" height="130" fill="#1a5a32" />
+        
         {/* Outer border */}
-        <rect x="2" y="2" width="96" height="129" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <rect x="4" y="4" width="92" height="122" fill="none" stroke="#2d7a4a" strokeWidth="0.8" />
         
         {/* Center line */}
-        <line x1="2" y1="66.5" x2="98" y2="66.5" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        <line x1="4" y1="65" x2="96" y2="65" stroke="#2d7a4a" strokeWidth="0.5" />
         
         {/* Center circle */}
-        <circle cx="50" cy="66.5" r="12" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
-        <circle cx="50" cy="66.5" r="0.8" fill="rgba(255,255,255,0.3)" />
+        <circle cx="50" cy="65" r="10" fill="none" stroke="#2d7a4a" strokeWidth="0.5" />
+        <circle cx="50" cy="65" r="1" fill="#2d7a4a" />
         
         {/* Top penalty area */}
-        <rect x="20" y="2" width="60" height="22" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
-        <rect x="32" y="2" width="36" height="8" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
-        <circle cx="50" cy="16" r="0.8" fill="rgba(255,255,255,0.3)" />
+        <rect x="22" y="4" width="56" height="18" fill="none" stroke="#2d7a4a" strokeWidth="0.5" />
+        <rect x="34" y="4" width="32" height="7" fill="none" stroke="#2d7a4a" strokeWidth="0.5" />
         
         {/* Bottom penalty area */}
-        <rect x="20" y="109" width="60" height="22" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
-        <rect x="32" y="123" width="36" height="8" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
-        <circle cx="50" cy="117" r="0.8" fill="rgba(255,255,255,0.3)" />
-      </svg>
-      
-      {/* Position markers */}
-      {Object.entries(POSITION_MAP).map(([posKey, pos]) => {
-        const rating = positionRatings[posKey] ?? 0;
-        const colors = getPositionColor(rating);
-        const isSelected = selectedPosition === posKey;
+        <rect x="22" y="108" width="56" height="18" fill="none" stroke="#2d7a4a" strokeWidth="0.5" />
+        <rect x="34" y="119" width="32" height="7" fill="none" stroke="#2d7a4a" strokeWidth="0.5" />
         
-        return (
-          <button
-            key={posKey}
-            onClick={() => onSelectPosition?.(posKey)}
-            className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${
-              isSelected ? 'scale-125 z-10' : 'hover:scale-110'
-            }`}
-            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            title={`${pos.label}: ${rating}`}
-          >
-            <div className={`
-              flex flex-col items-center justify-center
-              w-10 h-10 rounded-full
-              ${colors.bg} ${colors.text}
-              border-2 ${isSelected ? 'border-white ring-2 ring-white/50' : colors.border}
-              shadow-lg font-bold text-xs
-              cursor-pointer
-            `}>
-              <span className="text-[10px] font-semibold">{pos.shortLabel}</span>
-              <span className="text-[9px] opacity-90">{rating > 0 ? rating : '-'}</span>
-            </div>
-          </button>
-        );
-      })}
+        {/* Position markers */}
+        {Object.entries(POSITION_MAP).map(([posKey, pos]) => {
+          const rating = positionRatings[posKey] ?? 0;
+          const colors = getPositionColor(rating);
+          const isSelected = selectedPosition === posKey;
+          const cx = pos.x;
+          const cy = pos.y * 1.3;
+          
+          return (
+            <g 
+              key={posKey} 
+              onClick={() => onSelectPosition?.(posKey)}
+              style={{ cursor: 'pointer' }}
+            >
+              {isSelected && (
+                <circle cx={cx} cy={cy} r="7" fill="none" stroke="#fff" strokeWidth="1.5" />
+              )}
+              <circle 
+                cx={cx} 
+                cy={cy} 
+                r="5.5" 
+                fill={colors.bg}
+                stroke={isSelected ? '#fff' : colors.border}
+                strokeWidth="0.8"
+              />
+              <text 
+                x={cx} 
+                y={cy - 1} 
+                textAnchor="middle" 
+                dominantBaseline="middle"
+                fill={colors.text}
+                fontSize="3.2"
+                fontWeight="600"
+              >
+                {pos.shortLabel}
+              </text>
+              <text 
+                x={cx} 
+                y={cy + 2.5} 
+                textAnchor="middle" 
+                dominantBaseline="middle"
+                fill={colors.text}
+                fontSize="2.8"
+                fontWeight="500"
+              >
+                {rating > 0 ? rating : '-'}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 };
@@ -2242,6 +2320,7 @@ const PlayerProfileScreen = ({
     const list = parsePositionsLabel(player?.positionsLabel, player?.pos);
     return list?.[0] || player?.pos || '';
   });
+  const [showPotentialRating, setShowPotentialRating] = useState(false);
 
   useEffect(() => {
     const list = parsePositionsLabel(player?.positionsLabel, player?.pos);
@@ -3069,7 +3148,7 @@ const visibleAttrGroups = defaultAttrGroups;
 )}
 
         {activeTab === 'positions' && (() => {
-          const positionRatings = player.positionRatings || {
+          const currentRatings = player.positionRatings || {
             'GK': isGoalkeeperPlayer(player) ? 18 : 1,
             'D(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DL`) * 8),
             'D(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DC`) * 8),
@@ -3086,6 +3165,19 @@ const visibleAttrGroups = defaultAttrGroups;
             'ST(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:ST`) * 10),
           };
           
+          const ca = player.ca ?? 130;
+          const pa = player.pa ?? (ca + Math.round(hash01(`${player.id}:pa`) * 30));
+          const growthFactor = pa > ca ? (pa / ca) : 1;
+          
+          const potentialRatings = Object.fromEntries(
+            Object.entries(currentRatings).map(([pos, rating]) => [
+              pos,
+              Math.min(20, Math.round(rating * growthFactor + hash01(`${player.id}:${pos}:pot`) * 2))
+            ])
+          );
+          
+          const positionRatings = showPotentialRating ? potentialRatings : currentRatings;
+          
           const leftFoot = player.leftFoot ?? Math.round(10 + hash01(`${player.id}:LF`) * 10);
           const rightFoot = player.rightFoot ?? Math.round(10 + hash01(`${player.id}:RF`) * 10);
           
@@ -3096,7 +3188,11 @@ const visibleAttrGroups = defaultAttrGroups;
           ].filter(() => hash01(`${player.id}:move${Math.random()}`) > 0.3);
           
           const sortedPositions = Object.entries(positionRatings)
-            .map(([pos, rating]) => ({ pos, rating, label: POSITION_MAP[pos]?.label || pos }))
+            .map(([pos, rating]) => {
+              const currentVal = currentRatings[pos];
+              const potentialVal = potentialRatings[pos];
+              return { pos, rating, currentVal, potentialVal, label: POSITION_MAP[pos]?.label || pos };
+            })
             .sort((a, b) => b.rating - a.rating);
           
           const selectedPosData = POSITION_MAP[selectedPosition] || null;
@@ -3105,14 +3201,30 @@ const visibleAttrGroups = defaultAttrGroups;
             <div className="grid grid-cols-2 gap-5">
               {/* Left: Overview Panel */}
               <Card dark={dark} className="p-5">
-                <h3 className={`font-semibold ${text} mb-4`}>Overview</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`font-semibold ${text}`}>Overview</h3>
+                  <button
+                    onClick={() => setShowPotentialRating(!showPotentialRating)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      showPotentialRating 
+                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
+                        : `${dark ? 'bg-slate-700/50 text-slate-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`
+                    }`}
+                  >
+                    <TrendingUp size={12} />
+                    {showPotentialRating ? 'Potential' : 'Current'}
+                  </button>
+                </div>
                 
                 {/* Positions List */}
                 <div className="mb-5">
-                  <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-2`}>Positions</div>
+                  <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-2`}>
+                    Positions {showPotentialRating && <span className="text-purple-400">(Potential)</span>}
+                  </div>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {sortedPositions.map(({ pos, rating, label }) => {
+                    {sortedPositions.map(({ pos, rating, currentVal, potentialVal, label }) => {
                       const colors = getPositionColor(rating);
+                      const growth = potentialVal - currentVal;
                       return (
                         <button
                           key={pos}
@@ -3124,9 +3236,14 @@ const visibleAttrGroups = defaultAttrGroups;
                           }`}
                         >
                           <span className={`text-sm ${text}`}>{label}</span>
-                          <span className={`text-sm font-bold px-2 py-0.5 rounded ${colors.bg} ${colors.text}`}>
-                            {rating}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {showPotentialRating && growth > 0 && (
+                              <span className="text-xs text-purple-400">+{growth}</span>
+                            )}
+                            <span className={`text-sm font-bold px-2 py-0.5 rounded`} style={{ backgroundColor: colors.bg, color: colors.text }}>
+                              {rating}
+                            </span>
+                          </div>
                         </button>
                       );
                     })}
@@ -3196,6 +3313,111 @@ const visibleAttrGroups = defaultAttrGroups;
                   </div>
                 )}
               </Card>
+              
+              {/* Role Rating Panel */}
+              {selectedPosition && (() => {
+                const posGroup = POSITION_TO_GROUP[selectedPosition];
+                if (!posGroup) return null;
+                
+                const ipRoles = getRolesByPhaseAndGroup('IP', posGroup);
+                const oopRoles = getRolesByPhaseAndGroup('OOP', posGroup);
+                
+                const playerAttrs = convertAttrsToFM26Format(player.attrs || {});
+                
+                const ipRoleFits = ipRoles.map(role => {
+                  const fit = computeRoleFit(role, playerAttrs, DEFAULT_RATING_ENGINE_SETTINGS);
+                  return { ...role, fit: fit.score };
+                }).sort((a, b) => b.fit - a.fit);
+                
+                const oopRoleFits = oopRoles.map(role => {
+                  const fit = computeRoleFit(role, playerAttrs, DEFAULT_RATING_ENGINE_SETTINGS);
+                  return { ...role, fit: fit.score };
+                }).sort((a, b) => b.fit - a.fit);
+                
+                return (
+                  <Card dark={dark} className="p-5 col-span-2">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className={`font-semibold ${text}`}>Role Rating</h3>
+                        <div className={`text-xs ${muted}`}>{POSITION_MAP[selectedPosition]?.label}</div>
+                      </div>
+                      <Badge variant="primary" size="sm">FM26</Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* In Possession Roles */}
+                      <div>
+                        <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-3 flex items-center gap-2`}>
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                          In Possession (IP)
+                        </div>
+                        <div className="space-y-2">
+                          {ipRoleFits.length > 0 ? ipRoleFits.map(role => {
+                            const fitPercent = Math.round(role.fit * 5);
+                            const colors = getRoleFitColor(role.fit);
+                            return (
+                              <div 
+                                key={role.id}
+                                className={`flex items-center justify-between p-2.5 rounded-lg border ${colors.border} ${colors.bg}`}
+                              >
+                                <span className={`text-sm ${text}`}>{role.displayName}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full ${role.fit >= 12 ? 'bg-emerald-500' : role.fit >= 9 ? 'bg-yellow-500' : 'bg-orange-500'}`}
+                                      style={{ width: `${Math.min(fitPercent, 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-sm font-bold ${colors.text} w-12 text-right`}>
+                                    {role.fit.toFixed(1)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }) : (
+                            <div className={`text-sm ${muted} italic py-2`}>No IP roles available</div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Out of Possession Roles */}
+                      <div>
+                        <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-3 flex items-center gap-2`}>
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          Out of Possession (OOP)
+                        </div>
+                        <div className="space-y-2">
+                          {oopRoleFits.length > 0 ? oopRoleFits.map(role => {
+                            const fitPercent = Math.round(role.fit * 5);
+                            const colors = getRoleFitColor(role.fit);
+                            return (
+                              <div 
+                                key={role.id}
+                                className={`flex items-center justify-between p-2.5 rounded-lg border ${colors.border} ${colors.bg}`}
+                              >
+                                <span className={`text-sm ${text}`}>{role.displayName}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full ${role.fit >= 12 ? 'bg-emerald-500' : role.fit >= 9 ? 'bg-yellow-500' : 'bg-orange-500'}`}
+                                      style={{ width: `${Math.min(fitPercent, 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-sm font-bold ${colors.text} w-12 text-right`}>
+                                    {role.fit.toFixed(1)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }) : (
+                            <div className={`text-sm ${muted} italic py-2`}>No OOP roles available</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })()}
             </div>
           );
         })()}
