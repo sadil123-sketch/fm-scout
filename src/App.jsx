@@ -201,7 +201,6 @@ const ATTRIBUTE_GROUPS_V26 = {
 };
 
 const ATTRIBUTE_GROUPS_GK_OVERRIDES = {
-  // FM26 GK view shows only a small subset of technical attributes.
   Technical: [
     { key: 'freeKickTaking', label: 'Free Kick Taking' },
     { key: 'penaltyTaking', label: 'Penalty Taking' },
@@ -209,6 +208,63 @@ const ATTRIBUTE_GROUPS_GK_OVERRIDES = {
   ],
 };
 
+const ATTRIBUTE_TOOLTIPS = {
+  crossing: "Ability to deliver accurate crosses into the penalty area from wide positions.",
+  dribbling: "Ability to run with the ball under control and beat opponents.",
+  finishing: "Ability to put the ball in the net when presented with a goal-scoring chance.",
+  firstTouch: "Ability to control the ball well on first contact, setting up the next action.",
+  heading: "Ability to use the head effectively for passing, shooting, and clearing.",
+  longShots: "Ability to shoot accurately from outside the penalty area.",
+  marking: "Ability to track and stay close to opponents to prevent them receiving the ball.",
+  passing: "Ability to find teammates with accurate short and medium-range passes.",
+  tackling: "Ability to win the ball from opponents with well-timed tackles.",
+  technique: "Technical ability and skill when performing actions with the ball.",
+  corners: "Ability to deliver accurate corner kicks into dangerous areas.",
+  freeKickTaking: "Ability to take direct and indirect free kicks effectively.",
+  longThrows: "Ability to throw the ball long distances from throw-ins.",
+  penaltyTaking: "Ability to score from penalty kicks with composure and accuracy.",
+  aggression: "How likely a player is to get stuck in and compete for the ball.",
+  anticipation: "Ability to predict events and react to situations before they develop.",
+  bravery: "Willingness to risk physical injury for the good of the team.",
+  composure: "Ability to stay calm under pressure and make good decisions.",
+  concentration: "Ability to maintain focus throughout the match without lapses.",
+  decisions: "Ability to make the right choice in any given situation.",
+  determination: "Desire to succeed and unwillingness to give up.",
+  flair: "Ability to do the unpredictable and produce moments of magic.",
+  leadership: "Ability to inspire and command respect from teammates.",
+  offTheBall: "Ability to move intelligently without the ball to create space and options.",
+  positioning: "Ability to read the game and take up good defensive positions.",
+  teamwork: "Willingness to work for the team and follow tactical instructions.",
+  vision: "Ability to see potential passes and opportunities others might miss.",
+  workRate: "How hard a player will work during a match.",
+  acceleration: "How quickly a player can reach top speed from a standing start.",
+  agility: "Ability to change direction quickly while maintaining balance.",
+  balance: "Ability to stay on feet and maintain body position under pressure.",
+  jumpingReach: "How high a player can jump to reach the ball.",
+  naturalFitness: "How quickly a player recovers from injuries and maintains condition.",
+  pace: "Top running speed a player can achieve.",
+  stamina: "Ability to maintain physical exertion over the course of a match.",
+  strength: "Physical power in challenges and ability to hold off opponents.",
+  aerialReach: "How high the goalkeeper can reach when jumping for the ball.",
+  commandOfArea: "Ability to dominate the penalty area and organize the defense.",
+  communication: "Ability to direct and organize defensive teammates vocally.",
+  eccentricity: "Tendency to make unexpected and risky decisions as a goalkeeper.",
+  handling: "Ability to safely catch and hold onto the ball.",
+  kicking: "Ability to distribute the ball accurately with kicks.",
+  oneOnOnes: "Ability to stop opponents in one-on-one situations.",
+  punching: "Tendency to punch the ball clear rather than catch it.",
+  reflexes: "Reaction speed to make saves from close-range shots.",
+  rushingOut: "Tendency to come off the line to intercept through balls.",
+  throwing: "Ability to distribute the ball accurately with throws.",
+};
+
+const getAttributeTooltip = (key, groupName) => {
+  if (groupName === 'Goalkeeping') {
+    if (key === 'firstTouch') return "Goalkeeper's ability to control the ball with feet when receiving back passes.";
+    if (key === 'passing') return "Goalkeeper's ability to distribute the ball accurately with passes to teammates.";
+  }
+  return ATTRIBUTE_TOOLTIPS[key] || null;
+};
 
 const DEFAULT_GROUPS_OUTFIELD = ['Technical', 'Set Pieces', 'Mental', 'Physical'];
 const DEFAULT_GROUPS_GK = ['Goalkeeping', 'Mental', 'Physical', 'Technical'];
@@ -409,6 +465,25 @@ const AttributeValue = ({ value, size = 'md' }) => {
     <span className={`inline-flex items-center justify-center font-bold rounded-lg ${getColor(value)} ${sizes[size]}`}>
       {value}
     </span>
+  );
+};
+
+const AttributeTooltip = ({ label, tooltip, children }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div 
+      className="relative inline-flex items-center gap-1 cursor-help group"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {tooltip && show && (
+        <div className="absolute left-0 bottom-full mb-2 z-50 w-56 p-2 text-xs text-slate-200 bg-slate-900 border border-slate-700 rounded-lg shadow-xl pointer-events-none">
+          <div className="font-medium text-slate-100 mb-1">{label}</div>
+          <div className="text-slate-400 leading-relaxed">{tooltip}</div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -2093,22 +2168,7 @@ const defaultAttrGroups = useMemo(
   [player?.id, isGKPlayer]
 );
 
-const [visibleAttrGroups, setVisibleAttrGroups] = useState(defaultAttrGroups);
-const [collapsedAttrGroups, setCollapsedAttrGroups] = useState(() => {
-  const m = {};
-  (defaultAttrGroups || []).forEach((g) => { m[g] = false; });
-  return m;
-});
-
-const attrGroupRefs = useRef({});
-
-useEffect(() => {
-  setVisibleAttrGroups(defaultAttrGroups);
-  const m = {};
-  (defaultAttrGroups || []).forEach((g) => { m[g] = false; });
-  setCollapsedAttrGroups(m);
-  attrGroupRefs.current = {};
-}, [player?.id]); // reset on player switch
+const visibleAttrGroups = defaultAttrGroups;
 
 
   // Report state (persisted via app-level store)
@@ -2882,161 +2942,42 @@ useEffect(() => {
 
         
 {activeTab === 'attributes' && (
-  <div className="space-y-5">
-    <Card dark={dark} className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className={`font-semibold ${text}`}>Attribute groups</h3>
-          <div className={`text-xs ${muted} mt-1`}>
-            Defaults depend on position type (GK vs outfield). Goalkeeping can be toggled for any player.
-          </div>
-        </div>
+  <div className="grid grid-cols-3 gap-5">
+    {(() => {
+      const columns = buildFm26AttributeColumns(isGKPlayer, visibleAttrGroups || []);
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            dark={dark}
-            icon={GKIcon}
-            onClick={() => {
-              // Ensure visible + expanded then scroll
-              setVisibleAttrGroups((prev) => {
-                const has = (prev || []).includes('Goalkeeping');
-                const next = has ? (prev || []) : [...(prev || []), 'Goalkeeping'];
-                return ATTRIBUTE_GROUP_ORDER.filter((g) => next.includes(g));
-              });
-              setCollapsedAttrGroups((prev) => ({ ...(prev || {}), Goalkeeping: false }));
-              setTimeout(() => {
-                const el = attrGroupRefs.current?.Goalkeeping;
-                if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 0);
-            }}
-            title="Jump to Goalkeeping"
-          >
-            Goalkeeping
-          </Button>
+      return columns.map((col, colIdx) => (
+        <div key={`attr_col_${colIdx}`} className="space-y-5">
+          {col.map((groupName) => {
+            const items = attributeGroups?.[groupName] || [];
 
-          <Button
-            variant="ghost"
-            size="sm"
-            dark={dark}
-            icon={ChevronUp}
-            onClick={() => {
-              const next = {};
-              (visibleAttrGroups || []).forEach((g) => { next[g] = true; });
-              setCollapsedAttrGroups(next);
-            }}
-            title="Collapse all"
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            dark={dark}
-            icon={ChevronDown}
-            onClick={() => {
-              const next = {};
-              (visibleAttrGroups || []).forEach((g) => { next[g] = false; });
-              setCollapsedAttrGroups(next);
-            }}
-            title="Expand all"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 mt-4">
-        {ATTRIBUTE_GROUP_ORDER.map((g) => {
-          const on = (visibleAttrGroups || []).includes(g);
-          const isDefault = (defaultAttrGroups || []).includes(g);
-          const count = (attributeGroups?.[g] || []).length;
-
-          return (
-            <button
-              key={g}
-              onClick={() => {
-                const currentlyOn = (visibleAttrGroups || []).includes(g);
-
-                setVisibleAttrGroups((prev) => {
-                  const has = (prev || []).includes(g);
-                  const next = has ? (prev || []).filter((x) => x !== g) : [...(prev || []), g];
-                  return ATTRIBUTE_GROUP_ORDER.filter((x) => next.includes(x));
-                });
-
-                setCollapsedAttrGroups((prev) => {
-                  if (!currentlyOn && !(defaultAttrGroups || []).includes(g)) {
-                    // Optional groups start collapsed to reduce vertical scroll
-                    return { ...(prev || {}), [g]: true };
-                  }
-                  if (currentlyOn) {
-                    const next = { ...(prev || {}) };
-                    delete next[g];
-                    return next;
-                  }
-                  return prev || {};
-                });
-              }}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
-                on
-                  ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-                  : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'} ${border}`
-              }`}
-              title={isDefault ? 'Default group' : 'Optional group'}
-            >
-              {g === 'Goalkeeping' ? <GKIcon size={14} className={on ? 'border-blue-500/40' : ''} /> : null}
-              <span>{g}</span>
-              <Badge variant={on ? 'primary' : 'default'} size="xs" dark={dark}>{count}</Badge>
-              {isDefault ? <span className={`${muted} text-[10px]`}>• default</span> : null}
-            </button>
-          );
-        })}
-      </div>
-    </Card>
-
-<div className="grid grid-cols-3 gap-5">
-  {(() => {
-    const columns = buildFm26AttributeColumns(isGKPlayer, visibleAttrGroups || []);
-
-    return columns.map((col, colIdx) => (
-      <div key={`attr_col_${colIdx}`} className="space-y-5">
-        {col.map((groupName) => {
-          const items = attributeGroups?.[groupName] || [];
-          const collapsed = !!collapsedAttrGroups?.[groupName];
-
-          return (
-            <div key={groupName} ref={(el) => { if (el) attrGroupRefs.current[groupName] = el; }}>
-              <Card dark={dark} className="p-5">
-                <button
-                  onClick={() => setCollapsedAttrGroups((prev) => ({ ...(prev || {}), [groupName]: !prev?.[groupName] }))}
-                  className="w-full flex items-center justify-between mb-4 text-left"
-                  title={collapsed ? 'Expand group' : 'Collapse group'}
-                >
-                  <div className="flex items-center gap-2">
-                    {groupName === 'Goalkeeping' ? <GKIcon size={16} /> : null}
-                    <h3 className={`font-semibold ${text}`}>{groupName}</h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" dark={dark} size="xs">{items.length} attrs</Badge>
-                    {collapsed ? <ChevronDown size={16} className={muted} /> : <ChevronUp size={16} className={muted} />}
-                  </div>
-                </button>
-
-                {!collapsed && (
-                  <div className="space-y-2">
-                    {items.map(({ label, value, key }) => (
-                      <div key={key} className={`flex items-center justify-between p-2 rounded-xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} ${hover}`}>
-                        <span className={`text-sm ${muted}`} title={label}>{label}</span>
+            return (
+              <Card key={groupName} dark={dark} className="p-4">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/30">
+                  {groupName === 'Goalkeeping' ? <GKIcon size={14} /> : null}
+                  <h3 className={`text-sm font-semibold ${text}`}>{groupName}</h3>
+                  <Badge variant="default" dark={dark} size="xs">{items.length}</Badge>
+                </div>
+                <div className="space-y-1">
+                  {items.map(({ label, value, key }) => {
+                    const tooltip = getAttributeTooltip(key, groupName);
+                    return (
+                      <div key={key} className="flex items-center justify-between py-1.5 px-2 rounded-lg odd:bg-slate-800/30">
+                        <AttributeTooltip label={label} tooltip={tooltip}>
+                          <span className={`text-sm ${muted}`}>{label}</span>
+                          {tooltip && <Info size={12} className="text-slate-500 ml-1" />}
+                        </AttributeTooltip>
                         <AttributeValue value={value} size="sm" />
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </Card>
-            </div>
-          );
-        })}
-      </div>
-    ));
-  })()}
-</div>
+            );
+          })}
+        </div>
+      ));
+    })()}
   </div>
 )}
 
