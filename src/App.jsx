@@ -1751,6 +1751,7 @@ const SAMPLE_PLAYERS = [
     mediaHandling: 'Reserved',
     tag: 'hot',
     reputation: { home: 9200, current: 9400, world: 9600 },
+    details: { matchExercise: 100.0, jadedness: 45, fitness: 92.5, condition: 94, bestRating: { value: 89.2, position: 'RW' } },
     attrs: {
       pace: 17, acceleration: 17, dribbling: 16, technique: 15, firstTouch: 14, passing: 12, vision: 12,
       offTheBall: 15, decisions: 12, composure: 12, crossing: 13, workRate: 12, teamwork: 11, stamina: 13,
@@ -1778,6 +1779,7 @@ const SAMPLE_PLAYERS = [
     mediaHandling: 'Level-headed',
     tag: 'rising',
     reputation: { home: 8500, current: 8900, world: 9100 },
+    details: { matchExercise: 98.5, jadedness: 52, fitness: 88.7, condition: 91, bestRating: { value: 85.4, position: 'ST' } },
     attrs: {
       pace: 15, acceleration: 16, dribbling: 13, technique: 13, firstTouch: 13, passing: 10, vision: 9,
       offTheBall: 15, decisions: 12, composure: 14, crossing: 6, workRate: 13, teamwork: 11, stamina: 13,
@@ -1804,6 +1806,7 @@ const SAMPLE_PLAYERS = [
     personality: 'Determined',
     mediaHandling: 'Calm',
     reputation: { home: 7800, current: 8200, world: 8400 },
+    details: { matchExercise: 100.0, jadedness: 38, fitness: 95.2, condition: 97, bestRating: { value: 82.1, position: 'CM' } },
     attrs: {
       pace: 13, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 14, vision: 13,
       offTheBall: 12, decisions: 13, composure: 13, crossing: 8, workRate: 15, teamwork: 14, stamina: 15,
@@ -1830,6 +1833,7 @@ const SAMPLE_PLAYERS = [
     personality: 'Spirited',
     mediaHandling: 'Volatile',
     reputation: { home: 8800, current: 9000, world: 9200 },
+    details: { matchExercise: 95.8, jadedness: 67, fitness: 84.3, condition: 86, bestRating: { value: 87.6, position: 'CM' } },
     attrs: {
       pace: 13, acceleration: 14, dribbling: 13, technique: 13, firstTouch: 14, passing: 14, vision: 13,
       offTheBall: 13, decisions: 13, composure: 12, crossing: 9, workRate: 16, teamwork: 15, stamina: 16,
@@ -1857,6 +1861,7 @@ const SAMPLE_PLAYERS = [
     mediaHandling: 'Reserved',
     tag: 'bargain',
     reputation: { home: 7200, current: 7500, world: 7800 },
+    details: { matchExercise: 0.0, jadedness: 131, fitness: 62.1, condition: 58, bestRating: { value: 78.3, position: 'CM' } },
     attrs: {
       pace: 12, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 13, vision: 12,
       offTheBall: 11, decisions: 12, composure: 12, crossing: 8, workRate: 14, teamwork: 13, stamina: 14,
@@ -1884,6 +1889,7 @@ const SAMPLE_PLAYERS = [
     mediaHandling: 'Unflappable',
     tag: 'rising',
     reputation: { home: 7600, current: 7900, world: 8100 },
+    details: { matchExercise: 100.0, jadedness: 29, fitness: 96.8, condition: 98, bestRating: { value: 84.9, position: 'CB' } },
     attrs: {
       pace: 13, acceleration: 12, dribbling: 8, technique: 9, firstTouch: 10, passing: 12, vision: 10,
       offTheBall: 6, decisions: 13, composure: 14, crossing: 5, workRate: 13, teamwork: 13, stamina: 13,
@@ -1912,6 +1918,7 @@ const SAMPLE_PLAYERS = [
   mediaHandling: 'Reserved',
   tag: 'elite',
   reputation: { home: 8900, current: 9100, world: 9300 },
+  details: { matchExercise: 100.0, jadedness: 41, fitness: 90.2, condition: 92, bestRating: { value: 91.7, position: 'GK' } },
   attrs: {
     // Goalkeeping
     aerialReach: 16, handling: 17, punching: 14, commandOfArea: 15, communication: 14,
@@ -1944,6 +1951,7 @@ const SAMPLE_PLAYERS = [
   mediaHandling: 'Calm',
   tag: 'elite',
   reputation: { home: 8400, current: 8700, world: 8900 },
+  details: { matchExercise: 97.3, jadedness: 55, fitness: 87.4, condition: 89, bestRating: { value: 88.9, position: 'GK' } },
   attrs: {
     aerialReach: 15, handling: 16, punching: 13, commandOfArea: 14, communication: 15,
     kicking: 16, throwing: 15, oneOnOnes: 15, reflexes: 16, eccentricity: 10, rushingOut: 15,
@@ -3065,20 +3073,37 @@ const visibleAttrGroups = defaultAttrGroups;
 
               <HeaderMeta />
 
-              <div className="flex gap-6">
-                <div className="flex-1">
-                  <div className={`text-xs ${muted} mb-1.5`}>Current Ability</div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1"><ProgressBar value={player.ca} max={200} variant="success" size="lg" /></div>
-                    <span className="text-xl font-bold text-emerald-400">{player.ca}</span>
-                  </div>
+              {/* Details Row */}
+              <div className="flex gap-4 flex-wrap">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${dark ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+                  <span className={`text-xs ${muted}`}>Match Exercise</span>
+                  <span className={`text-sm font-semibold ${player.details?.matchExercise >= 90 ? 'text-emerald-400' : player.details?.matchExercise >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {player.details?.matchExercise?.toFixed(1) ?? '—'}%
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <div className={`text-xs ${muted} mb-1.5`}>Potential Ability</div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1"><ProgressBar value={player.pa} max={200} variant="primary" size="lg" /></div>
-                    <span className="text-xl font-bold text-blue-400">{player.pa}</span>
-                  </div>
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${dark ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+                  <span className={`text-xs ${muted}`}>Jadedness</span>
+                  <span className={`text-sm font-semibold ${player.details?.jadedness <= 50 ? 'text-emerald-400' : player.details?.jadedness <= 100 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {player.details?.jadedness ?? '—'}
+                  </span>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${dark ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+                  <span className={`text-xs ${muted}`}>Fitness</span>
+                  <span className={`text-sm font-semibold ${player.details?.fitness >= 85 ? 'text-emerald-400' : player.details?.fitness >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {player.details?.fitness?.toFixed(1) ?? '—'}%
+                  </span>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${dark ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+                  <span className={`text-xs ${muted}`}>Condition</span>
+                  <span className={`text-sm font-semibold ${player.details?.condition >= 85 ? 'text-emerald-400' : player.details?.condition >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                    {player.details?.condition ?? '—'}%
+                  </span>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${dark ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
+                  <span className={`text-xs ${muted}`}>Best Rating</span>
+                  <span className={`text-sm font-semibold text-blue-400`}>
+                    {player.details?.bestRating?.value?.toFixed(1) ?? '—'}% {player.details?.bestRating?.position ? `(${player.details.bestRating.position})` : ''}
+                  </span>
                 </div>
               </div>
 
