@@ -137,6 +137,10 @@ function RolePhaseSection({ title, description, fits }) {
     );
   }
 
+  const bestFit = fits[0];
+  const otherFits = fits.slice(1);
+  const bestColors = bestFit.fit.tierColor;
+
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
       <div className="mb-4">
@@ -144,11 +148,26 @@ function RolePhaseSection({ title, description, fits }) {
         <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
       </div>
       
-      <div className="space-y-2 max-h-80 overflow-y-auto">
-        {fits.map(({ role, fit }) => (
-          <RoleRow key={role.id} role={role} fit={fit} />
-        ))}
+      <div className={`mb-4 p-3 rounded-lg border ${bestColors.border} ${bestColors.bg}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] text-zinc-400 uppercase tracking-wider mb-0.5">Best Role</div>
+            <div className="text-sm font-semibold text-white">{bestFit.role.displayName}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xl font-bold ${bestColors.text}`}>{bestFit.fit.percentage}%</span>
+            <TierBadge tier={bestFit.fit.tier} percentage={bestFit.fit.percentage} size="sm" />
+          </div>
+        </div>
       </div>
+
+      {otherFits.length > 0 && (
+        <div className="space-y-1.5 max-h-56 overflow-y-auto">
+          {otherFits.map(({ role, fit }) => (
+            <RoleRow key={role.id} role={role} fit={fit} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
