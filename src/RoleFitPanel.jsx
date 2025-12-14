@@ -82,8 +82,8 @@ export default function RoleFitPanel({ player, positionGroup }) {
 
       {bestIP && bestOOP && (
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <BestRoleCard label="Best IP Role" role={bestIP.role} fit={bestIP.fit} />
-          <BestRoleCard label="Best OOP Role" role={bestOOP.role} fit={bestOOP.fit} />
+          <BestRoleCard label="In Possession (IP)" role={bestIP.role} fit={bestIP.fit} />
+          <BestRoleCard label="Out of Possession (OOP)" role={bestOOP.role} fit={bestOOP.fit} />
         </div>
       )}
 
