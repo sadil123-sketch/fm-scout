@@ -1750,6 +1750,7 @@ const SAMPLE_PLAYERS = [
     personality: 'Driven',
     mediaHandling: 'Reserved',
     tag: 'hot',
+    reputation: { home: 9200, current: 9400, world: 9600 },
     attrs: {
       pace: 17, acceleration: 17, dribbling: 16, technique: 15, firstTouch: 14, passing: 12, vision: 12,
       offTheBall: 15, decisions: 12, composure: 12, crossing: 13, workRate: 12, teamwork: 11, stamina: 13,
@@ -1776,6 +1777,7 @@ const SAMPLE_PLAYERS = [
     personality: 'Professional',
     mediaHandling: 'Level-headed',
     tag: 'rising',
+    reputation: { home: 8500, current: 8900, world: 9100 },
     attrs: {
       pace: 15, acceleration: 16, dribbling: 13, technique: 13, firstTouch: 13, passing: 10, vision: 9,
       offTheBall: 15, decisions: 12, composure: 14, crossing: 6, workRate: 13, teamwork: 11, stamina: 13,
@@ -1801,6 +1803,7 @@ const SAMPLE_PLAYERS = [
     injury: { status: 'fit' },
     personality: 'Determined',
     mediaHandling: 'Calm',
+    reputation: { home: 7800, current: 8200, world: 8400 },
     attrs: {
       pace: 13, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 14, vision: 13,
       offTheBall: 12, decisions: 13, composure: 13, crossing: 8, workRate: 15, teamwork: 14, stamina: 15,
@@ -1826,6 +1829,7 @@ const SAMPLE_PLAYERS = [
     injury: { status: 'fit' },
     personality: 'Spirited',
     mediaHandling: 'Volatile',
+    reputation: { home: 8800, current: 9000, world: 9200 },
     attrs: {
       pace: 13, acceleration: 14, dribbling: 13, technique: 13, firstTouch: 14, passing: 14, vision: 13,
       offTheBall: 13, decisions: 13, composure: 12, crossing: 9, workRate: 16, teamwork: 15, stamina: 16,
@@ -1852,6 +1856,7 @@ const SAMPLE_PLAYERS = [
     personality: 'Balanced',
     mediaHandling: 'Reserved',
     tag: 'bargain',
+    reputation: { home: 7200, current: 7500, world: 7800 },
     attrs: {
       pace: 12, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 13, vision: 12,
       offTheBall: 11, decisions: 12, composure: 12, crossing: 8, workRate: 14, teamwork: 13, stamina: 14,
@@ -1878,6 +1883,7 @@ const SAMPLE_PLAYERS = [
     personality: 'Fairly Professional',
     mediaHandling: 'Unflappable',
     tag: 'rising',
+    reputation: { home: 7600, current: 7900, world: 8100 },
     attrs: {
       pace: 13, acceleration: 12, dribbling: 8, technique: 9, firstTouch: 10, passing: 12, vision: 10,
       offTheBall: 6, decisions: 13, composure: 14, crossing: 5, workRate: 13, teamwork: 13, stamina: 13,
@@ -1905,6 +1911,7 @@ const SAMPLE_PLAYERS = [
   personality: 'Resolute',
   mediaHandling: 'Reserved',
   tag: 'elite',
+  reputation: { home: 8900, current: 9100, world: 9300 },
   attrs: {
     // Goalkeeping
     aerialReach: 16, handling: 17, punching: 14, commandOfArea: 15, communication: 14,
@@ -1936,6 +1943,7 @@ const SAMPLE_PLAYERS = [
   personality: 'Professional',
   mediaHandling: 'Calm',
   tag: 'elite',
+  reputation: { home: 8400, current: 8700, world: 8900 },
   attrs: {
     aerialReach: 15, handling: 16, punching: 13, commandOfArea: 14, communication: 15,
     kicking: 16, throwing: 15, oneOnOnes: 15, reflexes: 16, eccentricity: 10, rushingOut: 15,
@@ -3182,21 +3190,37 @@ const visibleAttrGroups = defaultAttrGroups;
 
               <Card dark={dark} className="p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <div className={`text-xs ${muted}`}>Availability</div>
-                  <Activity size={16} className="text-blue-500" />
+                  <div className={`text-xs ${muted}`}>Ability</div>
+                  <Target size={16} className="text-blue-500" />
                 </div>
-                <div className={`text-sm font-semibold ${availability.status === 'danger' ? 'text-red-400' : 'text-emerald-400'}`}>{availability.label}</div>
-                <div className={`text-xs ${muted}`}>{availability.sub}</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className={`text-xs ${muted}`}>CA</span>
+                    <span className="text-lg font-bold text-emerald-400">{player.ca || '—'}</span>
+                  </div>
+                  <div className={`w-px h-5 ${dark ? 'bg-slate-700' : 'bg-slate-200'}`} />
+                  <div className="flex items-center gap-1">
+                    <span className={`text-xs ${muted}`}>PA</span>
+                    <span className="text-lg font-bold text-blue-400">{player.pa || '—'}</span>
+                  </div>
+                </div>
+                <div className={`text-xs ${muted}`}>
+                  {player.pa && player.ca ? (player.pa > player.ca ? `+${player.pa - player.ca} potential` : 'Fully developed') : '—'}
+                </div>
               </Card>
 
               <Card dark={dark} className="p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <div className={`text-xs ${muted}`}>Form</div>
-                  <TrendingUp size={16} className="text-blue-500" />
+                  <div className={`text-xs ${muted}`}>Reputation</div>
+                  <Star size={16} className="text-blue-500" />
                 </div>
-                <div className={`text-lg font-bold ${text}`}>{f.avg ? f.avg.toFixed(2) : '—'}</div>
-                <div className={`text-xs ${muted}`}>
-                  Trend: <span className={f.delta > 0 ? 'text-emerald-400' : f.delta < 0 ? 'text-red-400' : muted}>{f.delta ? (f.delta > 0 ? `+${f.delta.toFixed(2)}` : f.delta.toFixed(2)) : '0.00'}</span>
+                <div className="flex items-center gap-2">
+                  <div className={`text-lg font-bold ${text}`}>{player.reputation?.world || player.rep || '—'}</div>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-slate-700' : 'bg-slate-200'} ${muted}`}>World</span>
+                </div>
+                <div className={`text-xs ${muted} flex gap-2`}>
+                  <span>Home: {player.reputation?.home || '—'}</span>
+                  <span>Current: {player.reputation?.current || '—'}</span>
                 </div>
               </Card>
             </div>
