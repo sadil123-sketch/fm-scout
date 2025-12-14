@@ -1,0 +1,5993 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Home, Users, UserCog, Building2, List, Sliders, History, Trophy, Target,
+  Search, Moon, Sun, Bell, Settings, ChevronLeft, ChevronRight, Filter,
+  Download, GitCompare, Plus, Star, TrendingUp, DollarSign, MapPin, FileText,
+  Clock, Eye, Crown, X, Check, ChevronDown, ChevronUp, Play, RefreshCw, Zap,
+  AlertCircle, Info, Sparkles, BarChart3, Activity, MoreHorizontal, HelpCircle,
+  Loader2, CheckCircle2, XCircle, Save, Upload, FolderOpen, Layout, Grid,
+  Columns, Table, Tag, RotateCcw, Edit3, Trash2, UserPlus, CheckSquare, Copy
+} from 'lucide-react';
+
+// ============================================
+// Design System
+// ============================================
+const theme = {
+  colors: {
+    primary: { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
+    success: { light: '#dcfce7', main: '#22c55e', dark: '#16a34a' },
+    warning: { light: '#fef3c7', main: '#f59e0b', dark: '#d97706' },
+    error: { light: '#fee2e2', main: '#ef4444', dark: '#dc2626' },
+    gold: { light: '#fef3c7', main: '#f59e0b', dark: '#b45309' },
+  }
+};
+
+// ============================================
+// Helpers (formatting + derived data)
+// ============================================
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+const safeParseDate = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const formatISODate = (iso) => {
+  const d = safeParseDate(iso);
+  if (!d) return '—';
+  // YYYY-MM-DD
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const calcAgeFromDOB = (dobISO, fallbackAge) => {
+  const dob = safeParseDate(dobISO);
+  if (!dob) return fallbackAge ?? '—';
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const m = now.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
+  return age;
+};
+
+const formatTimeAgo = (iso) => {
+  const d = safeParseDate(iso);
+  if (!d) return '—';
+  const diffMs = Date.now() - d.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 14) return `${days}d ago`;
+  return formatISODate(iso);
+};
+
+const formatDurationFromDays = (days) => {
+  const d = Math.max(0, Math.floor(days));
+  if (d < 7) return `${d}d`;
+  if (d < 30) return `${Math.round(d / 7)}w`;
+  if (d < 365) return `${Math.round(d / 30)}m`;
+  const y = Math.floor(d / 365);
+  const m = Math.round((d % 365) / 30);
+  return `${y}y${m ? ` ${m}m` : ''}`;
+};
+
+const contractRemaining = (untilISO) => {
+  const until = safeParseDate(untilISO);
+  if (!until) return { label: '—', days: null, status: 'neutral' };
+  const diffDays = Math.floor((until.getTime() - Date.now()) / 86400000);
+  const label = diffDays >= 0 ? formatDurationFromDays(diffDays) : 'Expired';
+  const status = diffDays < 0 ? 'danger' : diffDays <= 180 ? 'warning' : 'success';
+  return { label, days: diffDays, status };
+};
+
+const formSummary = (arr) => {
+  const xs = Array.isArray(arr) ? arr.filter((n) => typeof n === 'number') : [];
+  if (!xs.length) return { avg: null, delta: null };
+  const avg = xs.reduce((a, b) => a + b, 0) / xs.length;
+  const delta = xs.length >= 2 ? xs[xs.length - 1] - xs[0] : 0;
+  return { avg, delta };
+};
+
+const copyToClipboard = async (textToCopy) => {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(textToCopy);
+      return true;
+    }
+  } catch (_) {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = textToCopy;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+const makeId = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
+
+// Small toast stack used for micro-feedback (copy, added, etc.)
+const ToastStack = ({ toasts, onDismiss, dark }) => {
+  if (!toasts?.length) return null;
+  return (
+    <div className="fixed bottom-6 right-6 z-[9999] w-80 space-y-2">
+      {toasts.map((t) => (
+        <div key={t.id} onClick={() => onDismiss?.(t.id)} className="cursor-pointer">
+          <Toast variant={t.variant} title={t.title} message={t.message} dark={dark} />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================
+// Player Attribute Groups (FM26-aligned)
+// ============================================
+
+const ATTRIBUTE_GROUP_ORDER = ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Goalkeeping'];
+
+const ATTRIBUTE_GROUPS_V26 = {
+  Technical: [
+    { key: 'crossing', label: 'Crossing' },
+    { key: 'dribbling', label: 'Dribbling' },
+    { key: 'finishing', label: 'Finishing' },
+    { key: 'firstTouch', label: 'First Touch' },
+    { key: 'heading', label: 'Heading' },
+    { key: 'longShots', label: 'Long Shots' },
+    { key: 'marking', label: 'Marking' },
+    { key: 'passing', label: 'Passing' },
+    { key: 'tackling', label: 'Tackling' },
+    { key: 'technique', label: 'Technique' },
+  ],
+  'Set Pieces': [
+    { key: 'corners', label: 'Corners' },
+    { key: 'freeKickTaking', label: 'Free Kick Taking' },
+    { key: 'longThrows', label: 'Long Throws' },
+    { key: 'penaltyTaking', label: 'Penalty Taking' },
+  ],
+  Mental: [
+    { key: 'aggression', label: 'Aggression' },
+    { key: 'anticipation', label: 'Anticipation' },
+    { key: 'bravery', label: 'Bravery' },
+    { key: 'composure', label: 'Composure' },
+    { key: 'concentration', label: 'Concentration' },
+    { key: 'decisions', label: 'Decisions' },
+    { key: 'determination', label: 'Determination' },
+    { key: 'flair', label: 'Flair' },
+    { key: 'leadership', label: 'Leadership' },
+    { key: 'offTheBall', label: 'Off The Ball' },
+    { key: 'positioning', label: 'Positioning' },
+    { key: 'teamwork', label: 'Teamwork' },
+    { key: 'vision', label: 'Vision' },
+    { key: 'workRate', label: 'Work Rate' },
+  ],
+  Physical: [
+    { key: 'acceleration', label: 'Acceleration' },
+    { key: 'agility', label: 'Agility' },
+    { key: 'balance', label: 'Balance' },
+    { key: 'jumpingReach', label: 'Jumping Reach' },
+    { key: 'naturalFitness', label: 'Natural Fitness' },
+    { key: 'pace', label: 'Pace' },
+    { key: 'stamina', label: 'Stamina' },
+    { key: 'strength', label: 'Strength' },
+  ],
+  Goalkeeping: [
+    { key: 'aerialReach', label: 'Aerial Reach' },
+    { key: 'commandOfArea', label: 'Command Of Area' },
+    { key: 'communication', label: 'Communication' },
+    { key: 'eccentricity', label: 'Eccentricity' },
+    { key: 'firstTouch', label: 'First Touch' },
+    { key: 'handling', label: 'Handling' },
+    { key: 'kicking', label: 'Kicking' },
+    { key: 'oneOnOnes', label: 'One On Ones' },
+    { key: 'passing', label: 'Passing' },
+    { key: 'punching', label: 'Punching (Tendency)' },
+    { key: 'reflexes', label: 'Reflexes' },
+    { key: 'rushingOut', label: 'Rushing Out (Tendency)' },
+    { key: 'throwing', label: 'Throwing' },
+  ],
+};
+
+const ATTRIBUTE_GROUPS_GK_OVERRIDES = {
+  // FM26 GK view shows only a small subset of technical attributes.
+  Technical: [
+    { key: 'freeKickTaking', label: 'Free Kick Taking' },
+    { key: 'penaltyTaking', label: 'Penalty Taking' },
+    { key: 'technique', label: 'Technique' },
+  ],
+};
+
+
+const DEFAULT_GROUPS_OUTFIELD = ['Technical', 'Set Pieces', 'Mental', 'Physical'];
+const DEFAULT_GROUPS_GK = ['Goalkeeping', 'Mental', 'Physical', 'Technical'];
+
+const isGoalkeeperPlayer = (p) => {
+  const pos = String(p?.pos || '').toUpperCase();
+  const label = String(p?.positionsLabel || '');
+  return pos === 'GK' || /\bGK\b/i.test(label) || /goalkeeper/i.test(label);
+};
+
+// Clean "GK" icon badge (used instead of Shield)
+const GKIcon = ({ size = 16, className = '' }) => (
+  <span
+    aria-hidden="true"
+    className={`inline-flex items-center justify-center rounded-md border border-slate-500/40 ${className}`}
+    style={{ width: size, height: size }}
+  >
+    <span className="text-[9px] leading-none font-bold tracking-tight">GK</span>
+  </span>
+);
+
+// Deterministic pseudo-random 0..1 from string
+const hash01 = (str) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  // 0..1
+  return ((h >>> 0) % 1000) / 999;
+};
+
+const ALL_GROUP_ATTR_KEYS = (() => {
+  const set = new Set();
+  Object.values(ATTRIBUTE_GROUPS_V26).forEach((arr) => arr.forEach((x) => set.add(x.key)));
+  return Array.from(set);
+})();
+
+const enrichPlayerForAttributeGroups = (player) => {
+  const p = player || {};
+  const attrs = { ...(p.attrs || {}) };
+  const isGK = isGoalkeeperPlayer(p);
+
+  const ca = typeof p.ca === 'number' ? p.ca : 130;
+  // Base 6..16-ish
+  const core = clamp(Math.round(ca / 10), 6, 16);
+
+  ALL_GROUP_ATTR_KEYS.forEach((k) => {
+    if (typeof attrs[k] === 'number') return;
+
+    const r = hash01(`${p.id || p.name || 'p'}:${k}`);
+    const jitter = Math.round((r - 0.5) * 6); // -3..+3
+
+    const isGKAttr = ATTRIBUTE_GROUPS_V26.Goalkeeping.some((x) => x.key === k);
+
+    if (isGK) {
+      // GK has strong GK attrs; reasonable outfield baseline for the rest.
+      if (isGKAttr) attrs[k] = clamp(core + 4 + jitter, 8, 20);
+      else attrs[k] = clamp(core + jitter, 4, 18);
+    } else {
+      // Outfield: low GK attributes, but still present.
+      if (isGKAttr) attrs[k] = clamp(1 + Math.round(r * 5), 1, 6);
+      else attrs[k] = clamp(core + jitter, 3, 18);
+    }
+  });
+
+  return { ...p, attrs };
+};
+
+const getAttributeGroupDefs = (groupName, { isGKContext = false } = {}) => {
+  if (isGKContext && ATTRIBUTE_GROUPS_GK_OVERRIDES?.[groupName]) return ATTRIBUTE_GROUPS_GK_OVERRIDES[groupName];
+  return ATTRIBUTE_GROUPS_V26?.[groupName] || [];
+};
+
+const buildAttributeGroupItems = (attrs = {}, { isGKContext = false } = {}) => {
+  const out = {};
+  ATTRIBUTE_GROUP_ORDER.forEach((g) => {
+    const defs = getAttributeGroupDefs(g, { isGKContext });
+    out[g] = defs.map((d) => ({ ...d, value: attrs?.[d.key] }));
+  });
+  return out;
+};
+
+const buildFm26AttributeColumns = (isGKContext, visibleGroups = []) => {
+  const has = (g) => (visibleGroups || []).includes(g);
+
+  if (isGKContext) {
+    return [
+      has('Goalkeeping') ? ['Goalkeeping'] : [],
+      has('Mental') ? ['Mental'] : [],
+      [
+        ...(has('Physical') ? ['Physical'] : []),
+        ...(has('Technical') ? ['Technical'] : []),
+        ...(has('Set Pieces') ? ['Set Pieces'] : []),
+      ],
+    ];
+  }
+
+  return [
+    [
+      ...(has('Technical') ? ['Technical'] : []),
+      ...(has('Set Pieces') ? ['Set Pieces'] : []),
+    ],
+    has('Mental') ? ['Mental'] : [],
+    [
+      ...(has('Physical') ? ['Physical'] : []),
+      ...(has('Goalkeeping') ? ['Goalkeeping'] : []),
+    ],
+  ];
+};
+
+
+
+
+// ============================================
+// Wireframe Container
+// ============================================
+const WireframeContainer = ({ title, description, children, dark = true }) => (
+  <div className="mb-12">
+    <div className="mb-4">
+      <h2 className={`text-xl font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{title}</h2>
+      {description && <p className={`mt-1 text-sm ${dark ? 'text-slate-400' : 'text-slate-600'}`}>{description}</p>}
+    </div>
+    <div className={`rounded-2xl overflow-hidden ${dark ? 'shadow-2xl shadow-black/20' : 'shadow-xl shadow-slate-200/50'}`}>
+      {children}
+    </div>
+  </div>
+);
+
+// ============================================
+// Core UI Components
+// ============================================
+
+const Button = ({ children, variant = 'primary', size = 'md', icon: Icon = null, dark = false, className = '', disabled = false, loading = false, ...props }) => {
+  const baseClasses = 'inline-flex items-center justify-center font-medium transition-all duration-200 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed';
+  const variants = {
+    primary: 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:-translate-y-0.5',
+    secondary: dark ? 'bg-slate-700/50 hover:bg-slate-700 text-slate-200 border border-slate-600/50 hover:border-slate-500' : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 shadow-sm',
+    ghost: dark ? 'text-slate-400 hover:text-white hover:bg-slate-700/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
+    danger: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20',
+    success: 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20',
+    gold: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/25',
+  };
+  const sizes = { sm: 'px-3 py-1.5 text-xs gap-1.5', md: 'px-4 py-2 text-sm gap-2', lg: 'px-6 py-3 text-base gap-2' };
+  return (
+    <button className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`} disabled={disabled || loading} {...props}>
+      {loading ? <Loader2 size={size === 'sm' ? 14 : 16} className="animate-spin" /> : Icon && <Icon size={size === 'sm' ? 14 : size === 'md' ? 16 : 18} />}
+      {children}
+    </button>
+  );
+};
+
+const Badge = ({ children, variant = 'default', size = 'sm', dark }) => {
+  const variants = {
+    default: dark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-700',
+    primary: 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
+    success: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
+    warning: 'bg-amber-500/15 text-amber-400 border border-amber-500/20',
+    danger: 'bg-red-500/15 text-red-400 border border-red-500/20',
+    gold: 'bg-gradient-to-r from-amber-500/15 to-orange-500/15 text-amber-400 border border-amber-500/30',
+  };
+  const sizes = { xs: 'px-1.5 py-0.5 text-[10px]', sm: 'px-2 py-0.5 text-xs', md: 'px-2.5 py-1 text-sm' };
+  return <span className={`inline-flex items-center font-medium rounded-full ${variants[variant]} ${sizes[size]}`}>{children}</span>;
+};
+
+const ProgressBar = ({ value, max = 100, variant = 'primary', size = 'md' }) => {
+  const percentage = Math.min((value / max) * 100, 100);
+  const variants = { primary: 'bg-blue-500', success: 'bg-emerald-500', warning: 'bg-amber-500', danger: 'bg-red-500' };
+  const sizes = { sm: 'h-1', md: 'h-2', lg: 'h-3' };
+  return (
+    <div className={`w-full bg-slate-700/50 rounded-full overflow-hidden ${sizes[size]}`}>
+      <div className={`${sizes[size]} ${variants[variant]} rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }} />
+    </div>
+  );
+};
+
+const AttributeValue = ({ value, size = 'md' }) => {
+  const getColor = (val) => {
+    if (val >= 18) return 'text-emerald-400 bg-emerald-500/10';
+    if (val >= 15) return 'text-green-400 bg-green-500/10';
+    if (val >= 12) return 'text-yellow-400 bg-yellow-500/10';
+    if (val >= 8) return 'text-orange-400 bg-orange-500/10';
+    return 'text-red-400 bg-red-500/10';
+  };
+  const sizes = { sm: 'w-6 h-6 text-xs', md: 'w-8 h-8 text-sm', lg: 'w-10 h-10 text-base' };
+  return <span className={`inline-flex items-center justify-center font-bold rounded-lg ${getColor(value)} ${sizes[size]}`}>{value}</span>;
+};
+
+const Card = ({ children, className = '', dark, hover = false }) => {
+  const bg = dark ? 'bg-slate-800' : 'bg-white';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hoverClass = hover ? (dark ? 'hover:bg-slate-700/50 cursor-pointer' : 'hover:bg-slate-50 cursor-pointer') : '';
+  return <div className={`${bg} rounded-2xl border ${border} ${hoverClass} ${className}`}>{children}</div>;
+};
+
+const Avatar = ({ name, size = 'md', dark }) => {
+  const sizes = { sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-12 h-12 text-base', xl: 'w-16 h-16 text-lg' };
+  const bg = dark ? 'bg-slate-700' : 'bg-slate-200';
+  const text = dark ? 'text-slate-300' : 'text-slate-600';
+  return <div className={`${sizes[size]} rounded-xl ${bg} flex items-center justify-center ${text} font-medium`}>{name?.charAt(0)?.toUpperCase() || <Users size={size === 'sm' ? 14 : 18} />}</div>;
+};
+
+const Toast = ({ variant = 'info', title, message, action, dark }) => {
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const configs = {
+    info: { bg: 'bg-blue-500/10 border-blue-500/20', icon: HelpCircle, color: 'text-blue-500' },
+    success: { bg: 'bg-emerald-500/10 border-emerald-500/20', icon: CheckCircle2, color: 'text-emerald-500' },
+    warning: { bg: 'bg-amber-500/10 border-amber-500/20', icon: AlertCircle, color: 'text-amber-500' },
+    error: { bg: 'bg-red-500/10 border-red-500/20', icon: XCircle, color: 'text-red-500' },
+  };
+  const { bg, icon: Icon, color } = configs[variant];
+  return (
+    <div className={`flex items-center gap-3 p-3 rounded-xl ${bg} border`}>
+      <Icon className={color} size={20} />
+      <div className="flex-1">
+        <div className={`text-sm font-medium ${color.replace('-500', '-400')}`}>{title}</div>
+        {message && <div className={`text-xs ${muted}`}>{message}</div>}
+      </div>
+      {action && <Button variant="ghost" size="sm" dark={dark}>{action}</Button>}
+    </div>
+  );
+};
+
+const Skeleton = ({ className = '', dark }) => (
+  <div className={`${dark ? 'bg-slate-700' : 'bg-slate-200'} rounded animate-pulse ${className}`} />
+);
+
+const EmptyState = ({ icon: Icon, title, description, action, dark }) => {
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const text = dark ? 'text-white' : 'text-slate-900';
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className={`w-16 h-16 rounded-2xl ${dark ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center mb-4`}>
+        <Icon size={32} className={muted} />
+      </div>
+      <h3 className={`font-semibold ${text} mb-2`}>{title}</h3>
+      <p className={`text-sm ${muted} max-w-sm mb-4`}>{description}</p>
+      {action}
+    </div>
+  );
+};
+
+// ============================================
+// Sidebar Component
+// ============================================
+const Sidebar = ({ dark, collapsed, activeNav, gameLoaded = false }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hover = dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50';
+
+  const mainNav = [
+    { id: 'dashboard', icon: Home, label: 'Dashboard' },
+    { id: 'players', icon: Users, label: 'Players', disabled: !gameLoaded },
+    { id: 'staff', icon: UserCog, label: 'Staff', disabled: !gameLoaded },
+    { id: 'clubs', icon: Building2, label: 'Clubs', disabled: !gameLoaded },
+    { id: 'shortlists', icon: List, label: 'Shortlists', disabled: !gameLoaded },
+  ];
+
+  const toolsNav = [
+    { id: 'ratings', icon: Sliders, label: 'Custom Ratings', disabled: !gameLoaded },
+    { id: 'history', icon: History, label: 'History Points', disabled: !gameLoaded },
+    { id: 'comparison', icon: GitCompare, label: 'Compare', disabled: !gameLoaded },
+  ];
+
+  const proNav = [
+    { id: 'toplists', icon: Trophy, label: 'Top Lists', pro: true },
+    { id: 'squadgap', icon: Grid, label: 'Squad Gap Analyzer', pro: true },
+    { id: 'replacement', icon: GitCompare, label: 'Replacement Finder', pro: true },
+    { id: 'shortlistopt', icon: Zap, label: 'Shortlist Optimizer', pro: true },
+    { id: 'dealintel', icon: DollarSign, label: 'Deal Intelligence', pro: true },
+    { id: 'contractradar', icon: Clock, label: 'Contract & Clause Radar', pro: true },
+    { id: 'rolefinder', icon: Target, label: 'Role Finder', pro: true },
+    { id: 'radar', icon: Eye, label: 'Radar', pro: true },
+    { id: 'transferplan', icon: MapPin, label: 'Transfer Plan', pro: true },
+    { id: 'presetmarket', icon: Star, label: 'Preset Marketplace', pro: true },
+    { id: 'reports', icon: FileText, label: 'Pro Reports', pro: true },
+  ];
+
+  if (collapsed) {
+    return (
+      <aside className={`w-16 ${dark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-xl border-r ${border} flex flex-col items-center py-4`}>
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-6">
+          <Sparkles className="text-white" size={18} />
+        </div>
+        {mainNav.map((item, i) => (
+          <button key={i} className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2 transition-all ${activeNav === item.id ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : item.disabled ? `${muted} opacity-40` : `${muted} ${hover}`}`}>
+            <item.icon size={20} />
+          </button>
+        ))}
+        <div className={`w-8 border-t ${border} my-3`} />
+        {toolsNav.map((item, i) => (
+          <button key={i} className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2 ${item.disabled ? `${muted} opacity-40` : `${muted} ${hover}`}`}>
+            <item.icon size={20} />
+          </button>
+        ))}
+        <div className="mt-auto">
+          <button className={`w-10 h-10 rounded-xl flex items-center justify-center ${muted} ${hover}`}><Settings size={20} /></button>
+        </div>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className={`w-64 ${dark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-xl border-r ${border} flex flex-col`}>
+      <div className="p-5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+          <Sparkles className="text-white" size={20} />
+        </div>
+        <div>
+          <span className={`font-bold text-lg ${text}`}>Genie Scout</span>
+          <div className={`text-[10px] ${muted} flex items-center gap-1`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${gameLoaded ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+            {gameLoaded ? 'Connected' : 'Not Connected'}
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 px-3 py-2 overflow-auto">
+        <div className={`text-[10px] uppercase tracking-wider ${muted} px-3 mb-2`}>Main</div>
+        {mainNav.map((item, i) => (
+          <button key={i} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all ${activeNav === item.id ? 'bg-gradient-to-r from-blue-500/20 to-blue-600/10 text-blue-400 border border-blue-500/20' : item.disabled ? `${muted} opacity-40` : `${muted} ${hover}`}`}>
+            <item.icon size={18} />
+            <span className="text-sm font-medium">{item.label}</span>
+            {item.disabled && <div className="ml-auto w-2 h-2 rounded-full bg-slate-600" />}
+          </button>
+        ))}
+        <div className={`border-t ${border} my-4`} />
+        <div className={`text-[10px] uppercase tracking-wider ${muted} px-3 mb-2`}>Tools</div>
+        {toolsNav.map((item, i) => (
+          <button key={i} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 ${item.disabled ? `${muted} opacity-40` : `${muted} ${hover}`}`}>
+            <item.icon size={18} />
+            <span className="text-sm font-medium">{item.label}</span>
+          </button>
+        ))}
+        <div className={`border-t ${border} my-4`} />
+        <div className={`text-[10px] uppercase tracking-wider text-amber-500 px-3 mb-2 flex items-center gap-1`}><Crown size={10} /> g Edition</div>
+        {proNav.map((item, i) => (
+          <button key={i} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 ${muted} opacity-40`}>
+            <item.icon size={18} />
+            <span className="text-sm font-medium">{item.label}</span>
+            <Crown size={12} className="ml-auto text-amber-500/50" />
+          </button>
+        ))}
+      </nav>
+
+      <div className="p-4">
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
+          <div className="flex items-center gap-2 mb-2">
+            <Crown className="text-amber-500" size={16} />
+            <span className={`font-semibold ${text} text-sm`}>Unlock More</span>
+          </div>
+          <p className={`text-xs ${muted} mb-3`}>Get advanced projections and more.</p>
+          <Button variant="gold" size="sm" className="w-full">Upgrade Now</Button>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+// ============================================
+// Header Component
+// ============================================
+const Header = ({ dark, gameLoaded, onQuickAction }) => {
+  const [qaOpen, setQaOpen] = useState(false);
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const surface = dark ? 'bg-slate-800/50 backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hover = dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50';
+
+  const groups = [
+    {
+      label: 'Load Game',
+      items: [
+        { id: 'load', icon: Play, label: 'Detect Running FM', hint: 'Auto-detect active save' },
+        { id: 'reload', icon: RefreshCw, label: 'Reload last save', hint: 'Use last loaded save' },
+        { id: 'browse', icon: FolderOpen, label: 'Browse save file', hint: 'Manual .fm selection' },
+      ],
+    },
+    {
+      label: 'Shortlists',
+      items: [
+        { id: 'shortlists', icon: List, label: 'Open shortlists', hint: 'My Shortlist panel' },
+        { id: 'import_shortlist', icon: Upload, label: 'Import shortlist', hint: 'From FM / file' },
+        { id: 'export_shortlist', icon: Download, label: 'Export shortlist', hint: 'HTML / CSV / XLSX' },
+      ],
+    },
+    {
+      label: 'Search',
+      items: [
+        { id: 'search_players', icon: Users, label: 'Search players', hint: 'Filters + presets' },
+        { id: 'search_staff', icon: UserCog, label: 'Search staff', hint: 'Role presets + stars' },
+        { id: 'search_clubs', icon: Building2, label: 'Search clubs', hint: 'Facilities + finances' },
+      ],
+    },
+  ];
+
+  const handleAction = (actionId) => {
+    setQaOpen(false);
+    onQuickAction?.(actionId);
+  };
+
+  return (
+    <header className={`h-16 ${surface} border-b ${border} flex items-center px-6 gap-4 relative`}>
+      <div className="relative">
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={Zap}
+          dark={dark}
+          onClick={() => setQaOpen(v => !v)}
+          className="min-w-[44px]"
+          aria-haspopup="menu"
+          aria-expanded={qaOpen}
+        >
+          <span className="hidden sm:inline">Quick</span>
+          <ChevronDown size={14} className={`${muted} ml-1`} />
+        </Button>
+
+        {qaOpen && (
+          <div
+            role="menu"
+            className={`absolute left-0 mt-2 w-[360px] rounded-2xl border ${border} ${dark ? 'bg-slate-900/95' : 'bg-white/95'} shadow-2xl overflow-hidden z-50`}
+          >
+            {groups.map((group, gi) => (
+              <div key={group.label} className={gi > 0 ? `border-t ${border}` : ''}>
+                <div className={`px-4 py-2 text-[10px] uppercase tracking-wider ${muted}`}>{group.label}</div>
+                <div className="p-2">
+                  {group.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleAction(item.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${hover}`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl ${dark ? 'bg-slate-800' : 'bg-slate-100'} flex items-center justify-center border ${border}`}>
+                        <item.icon size={16} className="text-blue-500" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className={`text-sm font-medium ${text}`}>{item.label}</div>
+                        <div className={`text-xs ${muted}`}>{item.hint}</div>
+                      </div>
+                      <ChevronRight size={16} className={muted} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className={`p-3 border-t ${border}`}>
+              <Button variant="ghost" size="sm" dark={dark} className="w-full" onClick={() => setQaOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={`flex-1 max-w-xl flex items-center gap-3 ${dark ? 'bg-slate-800/50' : 'bg-slate-100'} rounded-xl px-4 py-2.5 border ${border}`}>
+        <Search size={18} className={muted} />
+        <input type="text" placeholder="Search players, staff, clubs... (Ctrl+K)" className={`flex-1 bg-transparent outline-none text-sm ${text}`} />
+        <kbd className={`px-2 py-0.5 rounded text-xs ${dark ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>⌘K</kbd>
+      </div>
+
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-xl ${gameLoaded ? `${dark ? 'bg-emerald-500/10' : 'bg-emerald-50'} border-emerald-500/20` : `${dark ? 'bg-amber-500/10' : 'bg-amber-50'} border-amber-500/20`} border`}>
+        <div className="relative">
+          <div className={`w-2.5 h-2.5 ${gameLoaded ? 'bg-emerald-500' : 'bg-amber-500'} rounded-full`} />
+          {!gameLoaded && <div className="absolute inset-0 w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping opacity-50" />}
+        </div>
+        <span className={`text-sm font-medium ${gameLoaded ? 'text-emerald-400' : 'text-amber-400'}`}>{gameLoaded ? 'FM 26 Connected' : 'No Game Loaded'}</span>
+      </div>
+
+      <div className="flex items-center gap-1">
+        {[Bell, HelpCircle, Sun, Settings].map((Icon, i) => (
+          <button key={i} className={`p-2.5 rounded-xl ${hover}`}><Icon size={20} className={muted} /></button>
+        ))}
+      </div>
+    </header>
+  );
+};
+
+
+// ============================================
+// Rating Engine (FM26): Roles, Modifier Packs, Scoring Helpers
+// ============================================
+
+
+const normalizeWeights = (weights) => {
+  const entries = Object.entries(weights || {}).filter(([, w]) => Number(w) > 0);
+  const sum = entries.reduce((s, [, w]) => s + Number(w), 0);
+  if (!sum) return {};
+  const out = {};
+  entries.forEach(([k, w]) => { out[k] = Number(w) / sum; });
+  return out;
+};
+
+// Attribute groups used by the Coefficient Editor (subset for prototype)
+const FM26_ATTRIBUTE_GROUPS = [
+  { id: 'technical', label: 'Technical', keys: ['crossing', 'dribbling', 'firstTouch', 'finishing', 'passing', 'technique', 'tackling'] },
+  { id: 'mental', label: 'Mental', keys: ['anticipation', 'composure', 'decisions', 'offTheBall', 'positioning', 'teamwork', 'vision', 'workRate'] },
+  { id: 'physical', label: 'Physical', keys: ['acceleration', 'agility', 'balance', 'pace', 'stamina', 'strength'] },
+];
+
+// FM26 role library (prototype subset). Each role defines separate IP/OOP baseline weights.
+const FM26_ROLE_LIBRARY = [
+  {
+    id: 'afba',
+    name: 'Attacking Full-Back (A)',
+    positionGroup: 'FB/WB',
+    ipWeights: { pace: 12, acceleration: 10, stamina: 10, crossing: 9, dribbling: 7, passing: 6, teamwork: 4, workRate: 6, offTheBall: 5, decisions: 4 },
+    oopWeights: { tackling: 10, positioning: 10, anticipation: 8, pace: 6, stamina: 6, strength: 5, decisions: 5, teamwork: 4, workRate: 6 },
+  },
+  {
+    id: 'iwsa',
+    name: 'Inverted Winger (S)',
+    positionGroup: 'W/AM',
+    ipWeights: { dribbling: 12, technique: 9, firstTouch: 8, pace: 9, acceleration: 8, passing: 7, vision: 6, offTheBall: 7, decisions: 5, finishing: 4 },
+    oopWeights: { workRate: 7, teamwork: 6, positioning: 5, tackling: 4, stamina: 6, pace: 5, anticipation: 4 },
+  },
+  {
+    id: 'apss',
+    name: 'Advanced Playmaker (S)',
+    positionGroup: 'AM/CM',
+    ipWeights: { passing: 12, vision: 10, technique: 8, firstTouch: 7, decisions: 8, offTheBall: 6, dribbling: 6, composure: 6, teamwork: 4 },
+    oopWeights: { workRate: 5, teamwork: 6, positioning: 5, tackling: 4, stamina: 5, anticipation: 4, decisions: 4 },
+  },
+  {
+    id: 'dlpd',
+    name: 'Deep-Lying Playmaker (D)',
+    positionGroup: 'DM/CM',
+    ipWeights: { passing: 10, vision: 8, decisions: 8, technique: 6, composure: 7, teamwork: 6, positioning: 7 },
+    oopWeights: { positioning: 10, tackling: 8, anticipation: 7, decisions: 6, teamwork: 6, stamina: 5, strength: 5 },
+  },
+  {
+    id: 'bpd',
+    name: 'Ball-Playing Defender (D)',
+    positionGroup: 'CB',
+    ipWeights: { passing: 8, technique: 5, composure: 8, decisions: 7, vision: 5, firstTouch: 4 },
+    oopWeights: { tackling: 10, positioning: 10, anticipation: 8, strength: 8, pace: 5, decisions: 6, composure: 6 },
+  },
+  {
+    id: 'nccb',
+    name: 'No-Nonsense Centre-Back (D)',
+    positionGroup: 'CB',
+    ipWeights: { passing: 2, technique: 2, composure: 4 },
+    oopWeights: { tackling: 11, positioning: 11, anticipation: 9, strength: 10, pace: 4, decisions: 6, bravery: 0 }, // bravery omitted from groups (kept 0)
+  },
+  {
+    id: 'pf',
+    name: 'Pressing Forward (A)',
+    positionGroup: 'ST',
+    ipWeights: { finishing: 8, offTheBall: 8, pace: 8, acceleration: 7, dribbling: 5, firstTouch: 6, composure: 6, decisions: 5, teamwork: 6, workRate: 10, stamina: 8 },
+    oopWeights: { workRate: 10, teamwork: 8, stamina: 9, pace: 6, anticipation: 6, tackling: 4, positioning: 4, decisions: 5 },
+  },
+  {
+    id: 'af',
+    name: 'Advanced Forward (A)',
+    positionGroup: 'ST',
+    ipWeights: { finishing: 10, offTheBall: 10, pace: 10, acceleration: 9, dribbling: 6, firstTouch: 7, composure: 7, decisions: 5 },
+    oopWeights: { workRate: 5, teamwork: 4, stamina: 5, pace: 4, anticipation: 4, decisions: 4 },
+  },
+];
+
+const FM26_ROLE_GROUPS = ['ALL', 'GK', 'FB/WB', 'CB', 'DM/CM', 'AM/CM', 'W/AM', 'ST'];
+
+// Modifier packs apply deltas to weights (prototype deltas; replace with final doc tables)
+const FM26_MODIFIER_PACKS = [
+  { id: 'pressing_intensity', name: 'Pressing Intensity', scope: 'both', deltas: { workRate: 2, stamina: 2, teamwork: 1, anticipation: 1 } },
+  { id: 'ball_progression', name: 'Ball Progression', scope: 'ip', deltas: { passing: 2, vision: 1, technique: 1, firstTouch: 1 } },
+  { id: 'chance_creation', name: 'Chance Creation', scope: 'ip', deltas: { dribbling: 1, passing: 1, vision: 1, offTheBall: 1 } },
+  { id: 'defensive_duels', name: 'Defensive Duels', scope: 'oop', deltas: { tackling: 2, positioning: 2, strength: 1, anticipation: 1 } },
+  { id: 'athleticism', name: 'Athleticism', scope: 'both', deltas: { pace: 1, acceleration: 1, stamina: 1, strength: 1 } },
+];
+
+const getRoleById = (id) => FM26_ROLE_LIBRARY.find(r => r.id === id) || FM26_ROLE_LIBRARY[0];
+
+const parsePositionsLabel = (positionsLabel, fallbackPos) => {
+  const raw = (positionsLabel || fallbackPos || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const uniq = [];
+  raw.forEach((p) => { if (!uniq.includes(p)) uniq.push(p); });
+  return uniq.length ? uniq : (fallbackPos ? [fallbackPos] : []);
+};
+
+const guessRoleIdsFromPos = (pos = '') => {
+  const p = String(pos || '').toUpperCase();
+  // Best-effort defaults (prototype) — adjust when full FM26 role library is wired.
+  if (p.includes('RW') || p.includes('LW') || p.includes('AM(R') || p.includes('AM(L') || p.includes('W')) return { ip: 'iwsa', oop: 'iwsa' };
+  if (p.includes('ST')) return { ip: 'af', oop: 'pf' };
+  if (p.includes('DM')) return { ip: 'dlpd', oop: 'dlpd' };
+  if (p.includes('AM') || p.includes('AMC')) return { ip: 'apss', oop: 'apss' };
+  if (p.includes('CM')) return { ip: 'apss', oop: 'dlpd' };
+  if (p.includes('CB')) return { ip: 'bpd', oop: 'nccb' };
+  if (p.includes('WB') || p.includes('FB')) return { ip: 'afba', oop: 'afba' };
+  return { ip: FM26_ROLE_LIBRARY[0]?.id || 'afba', oop: FM26_ROLE_LIBRARY[0]?.id || 'afba' };
+};
+
+const guessRoleGroupFromPosition = (positionLabel = '') => {
+  const p = String(positionLabel || '').toUpperCase();
+  if (p.includes('GK')) return 'GK';
+  if (p.includes('CB')) return 'CB';
+  if (p.includes('WB') || p.includes('FB')) return 'FB/WB';
+  if (p.includes('DM')) return 'DM/CM';
+  if (p.includes('AM') || p.includes('W') || p.includes('RW') || p.includes('LW')) return 'W/AM';
+  if (p.includes('ST')) return 'ST';
+  if (p.includes('CM')) return 'DM/CM';
+  return 'ALL';
+};
+
+const applyModifierPacks = (baseWeights, selectedPackIds = [], scope = 'ip') => {
+  const w = { ...(baseWeights || {}) };
+  selectedPackIds.forEach((pid) => {
+    const pack = FM26_MODIFIER_PACKS.find(p => p.id === pid);
+    if (!pack) return;
+    if (pack.scope !== 'both' && pack.scope !== scope) return;
+    Object.entries(pack.deltas || {}).forEach(([k, delta]) => {
+      w[k] = clamp((w[k] || 0) + delta, 0, 20);
+    });
+  });
+  return normalizeWeights(w);
+};
+
+const calcPhaseScore = (attrs = {}, normalizedWeights = {}) => {
+  const entries = Object.entries(normalizedWeights || {});
+  if (!entries.length) return 0;
+  const weighted = entries.reduce((s, [k, w]) => s + (Number(attrs[k]) || 0) * w, 0);
+  return Math.round((weighted / 20) * 100);
+};
+
+const calcRolePairScore = ({ attrs, ipWeights, oopWeights, mix }) => {
+  const ip = calcPhaseScore(attrs, ipWeights);
+  const oop = calcPhaseScore(attrs, oopWeights);
+  const total = Math.round(ip * (mix?.ip ?? 1) + oop * (mix?.oop ?? 0));
+  return { ip, oop, total };
+};
+
+const buildEffectiveWeights = (baseWeights, overrides = {}, packIds = [], scope = 'ip') => {
+  const merged = { ...(baseWeights || {}) };
+  Object.entries(overrides || {}).forEach(([k, v]) => {
+    merged[k] = clamp(Number(v) || 0, 0, 20);
+  });
+  return applyModifierPacks(merged, packIds, scope);
+};
+
+// ============================================
+// Rating Engine UI Components
+// ============================================
+
+const RolePairSelector = ({
+  dark,
+  mode = 'pair', // 'pair' | 'single'
+  ipRoleId,
+  oopRoleId,
+  onModeChange,
+  onChange,
+  compact = false,
+}) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+
+  const [group, setGroup] = useState('ALL');
+
+  const base = FM26_ROLE_LIBRARY
+    .filter(r => (group === 'ALL' ? true : r.positionGroup === group))
+    .map(r => ({ id: r.id, name: r.name }));
+
+  // Ensure selected roles remain visible even if group filter would hide them.
+  const optById = new Map(base.map(o => [o.id, o]));
+  [ipRoleId, oopRoleId].forEach((id) => {
+    if (!id) return;
+    if (optById.has(id)) return;
+    const r = getRoleById(id);
+    optById.set(id, { id: r.id, name: r.name });
+  });
+  const options = Array.from(optById.values());
+
+  const ipRole = getRoleById(ipRoleId);
+  const oopRole = getRoleById(oopRoleId);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className={`text-sm font-semibold ${text}`}>{compact ? 'Role Fit' : 'Role Pair Selector'}</div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onModeChange?.('pair')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border ${border} ${mode === 'pair' ? 'bg-blue-500 text-white border-blue-500/30' : dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`}
+          >
+            IP + OOP
+          </button>
+          <button
+            onClick={() => onModeChange?.('single')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border ${border} ${mode === 'single' ? 'bg-blue-500 text-white border-blue-500/30' : dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`}
+          >
+            IP only
+          </button>
+        </div>
+      </div>
+
+      {!compact && (
+        <div className="flex flex-wrap gap-2">
+          {FM26_ROLE_GROUPS.map((g) => (
+            <button
+              key={g}
+              onClick={() => setGroup(g)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium ${group === g ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : `${dark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'} ${muted}`}`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={`grid ${compact ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
+        <div>
+          <label className={`text-xs ${muted} block mb-1`}>In Possession (IP)</label>
+          <select
+            value={ipRoleId}
+            onChange={(e) => onChange?.({ ipRoleId: e.target.value, oopRoleId })}
+            className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900 text-slate-200' : 'bg-white text-slate-700'}`}
+          >
+            {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        </div>
+
+        {mode === 'pair' && (
+          <div>
+            <label className={`text-xs ${muted} block mb-1`}>Out of Possession (OOP)</label>
+            <select
+              value={oopRoleId}
+              onChange={(e) => onChange?.({ ipRoleId, oopRoleId: e.target.value })}
+              className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900 text-slate-200' : 'bg-white text-slate-700'}`}
+            >
+              {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {!compact && (
+        <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+          <div className="flex items-start gap-3">
+            <Info size={16} className="text-blue-500 mt-0.5" />
+            <div className="flex-1">
+              <div className={`text-sm font-medium ${text}`}>{ipRole.name}{mode === 'pair' ? ` ↔ ${oopRole.name}` : ''}</div>
+              <div className={`text-xs ${muted} mt-1`}>Role pair selection feeds Search “Role Fit”, Top Lists sorting, and Live Preview.</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CoefficientEditor = ({
+  dark,
+  title,
+  scope = 'ip',
+  baseWeights,
+  overrides,
+  onOverrideChange,
+  selectedPacks,
+  onTogglePack,
+  showAdvanced = true,
+}) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+
+  const allKeys = Array.from(new Set([
+    ...Object.keys(baseWeights || {}),
+    ...Object.keys(overrides || {}),
+    ...FM26_ATTRIBUTE_GROUPS.flatMap(g => g.keys),
+  ]));
+
+  const getVal = (k) => {
+    if (overrides && overrides[k] !== undefined) return overrides[k];
+    return baseWeights?.[k] ?? 0;
+  };
+
+  return (
+    <Card dark={dark} className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className={`text-sm font-semibold ${text}`}>{title}</div>
+          <div className={`text-xs ${muted}`}>Override weights (0–20). Packs apply deltas after overrides.</div>
+        </div>
+        <Badge variant={scope === 'ip' ? 'primary' : 'warning'}>{scope.toUpperCase()}</Badge>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {FM26_MODIFIER_PACKS.filter(p => p.scope === 'both' || p.scope === scope).map((p) => {
+          const active = (selectedPacks || []).includes(p.id);
+          return (
+            <button
+              key={p.id}
+              onClick={() => onTogglePack?.(p.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${active ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`}
+            >
+              {p.name}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-4">
+        {FM26_ATTRIBUTE_GROUPS.map((group) => (
+          <div key={group.id}>
+            <div className={`text-[10px] uppercase tracking-wider ${muted} mb-2`}>{group.label}</div>
+            <div className="grid grid-cols-2 gap-3">
+              {group.keys.filter(k => showAdvanced ? true : allKeys.includes(k)).map((k) => (
+                <div key={k} className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-xs font-medium ${text}`}>{k}</div>
+                    <div className={`text-xs ${muted}`}>{getVal(k)}</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={20}
+                    value={getVal(k)}
+                    onChange={(e) => onOverrideChange?.(k, Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
+
+const RolePairLivePreview = ({ dark, title = 'Live Preview', ipWeights, oopWeights, mix }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+
+  const samplePlayers = [
+    { name: 'Winger A', attrs: { pace: 17, acceleration: 17, dribbling: 16, passing: 12, finishing: 11, offTheBall: 15, workRate: 12, stamina: 13, decisions: 12, vision: 12, technique: 15, crossing: 13, tackling: 7, positioning: 7, anticipation: 10, composure: 12, strength: 9, firstTouch: 14, teamwork: 11, agility: 15, balance: 12 } },
+    { name: 'Fullback B', attrs: { pace: 15, acceleration: 14, dribbling: 12, passing: 11, finishing: 6, offTheBall: 10, workRate: 15, stamina: 16, decisions: 12, vision: 9, technique: 11, crossing: 14, tackling: 13, positioning: 13, anticipation: 12, composure: 11, strength: 12, firstTouch: 10, teamwork: 14, agility: 12, balance: 12 } },
+    { name: 'CB C', attrs: { pace: 12, acceleration: 11, dribbling: 7, passing: 10, finishing: 4, offTheBall: 6, workRate: 13, stamina: 13, decisions: 12, vision: 8, technique: 8, crossing: 5, tackling: 15, positioning: 15, anticipation: 14, composure: 13, strength: 16, firstTouch: 8, teamwork: 13, agility: 10, balance: 14 } },
+  ];
+
+  return (
+    <Card dark={dark} className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className={`text-sm font-semibold ${text}`}>{title}</div>
+          <div className={`text-xs ${muted}`}>Scores update instantly; used for Search “Role Fit” and Top Lists.</div>
+        </div>
+        <Badge variant="success">Realtime</Badge>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        {samplePlayers.map((p) => {
+          const { ip, oop, total } = calcRolePairScore({ attrs: p.attrs, ipWeights, oopWeights, mix });
+          return (
+            <div key={p.name} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+              <div className={`font-medium ${text}`}>{p.name}</div>
+              <div className={`text-xs ${muted} mt-1`}>Total: <span className="text-blue-400 font-semibold">{total}%</span></div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] ${muted} uppercase tracking-wider`}>IP</span>
+                  <span className={`text-xs ${muted}`}>{ip}%</span>
+                </div>
+                <ProgressBar value={ip} max={100} variant={ip >= 75 ? 'success' : 'warning'} size="sm" />
+                {mix?.oop > 0 && (
+                  <>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className={`text-[10px] ${muted} uppercase tracking-wider`}>OOP</span>
+                      <span className={`text-xs ${muted}`}>{oop}%</span>
+                    </div>
+                    <ProgressBar value={oop} max={100} variant={oop >= 75 ? 'success' : 'warning'} size="sm" />
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
+
+
+// ============================================
+// Screen: Dashboard
+// ============================================
+const DashboardScreen = ({ dark, gameLoaded, onLoadGame }) => {
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const surfaceSolid = dark ? 'bg-slate-800' : 'bg-white';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hover = dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50';
+
+  const quickActionStyle = {
+    blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
+    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500' },
+    purple: { bg: 'bg-purple-500/10', text: 'text-purple-500' },
+    cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-500' },
+    amber: { bg: 'bg-amber-500/10', text: 'text-amber-500' },
+  };
+
+  return (
+    <main className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className={`${surfaceSolid} rounded-3xl p-8 mb-8 border ${border} relative overflow-hidden`}>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
+        <div className="relative flex items-start gap-8">
+          <div className="flex-1">
+            <h1 className={`text-3xl font-bold ${text} mb-3`}>Welcome to Genie Scout</h1>
+            <p className={`${muted} text-lg mb-6 max-w-xl`}>Your ultimate Football Manager companion. Load your save to unlock powerful scouting tools.</p>
+            <div className="flex gap-3">
+              <Button variant="primary" size="lg" icon={Play} onClick={onLoadGame}>{gameLoaded ? 'Reload Save' : 'Detect Running FM'}</Button>
+              <Button variant="secondary" size="lg" icon={FolderOpen} dark={dark}>Browse Files</Button>
+            </div>
+          </div>
+          <div className={`${dark ? 'bg-slate-700/50' : 'bg-slate-100'} rounded-2xl p-6 min-w-[280px]`}>
+            <div className="flex items-center gap-3 mb-4">
+              {gameLoaded ? <CheckCircle2 className="text-emerald-500" size={24} /> : <Loader2 className={`${muted} animate-spin`} size={24} />}
+              <span className={`font-semibold ${gameLoaded ? text : muted}`}>{gameLoaded ? 'Save Loaded' : 'Waiting for FM...'}</span>
+            </div>
+            {gameLoaded ? (
+              <div className="space-y-3">
+                {[{ label: 'Players', value: '251,847' }, { label: 'Staff', value: '89,432' }, { label: 'Clubs', value: '12,458' }].map((stat, i) => (
+                  <div key={i} className="flex justify-between"><span className={`text-sm ${muted}`}>{stat.label}</span><span className={`text-sm font-semibold ${text}`}>{stat.value}</span></div>
+                ))}
+              </div>
+            ) : (
+              <p className={`text-sm ${muted}`}>Launch Football Manager and load a save game to continue.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2">
+          <h2 className={`text-sm font-semibold ${muted} uppercase tracking-wider mb-4`}>Quick Actions</h2>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { icon: Users, title: 'Search Players', desc: 'Find your next star', color: 'blue' },
+              { icon: List, title: 'Shortlists', desc: 'Manage targets', color: 'emerald' },
+              { icon: GitCompare, title: 'Compare', desc: 'Side by side', color: 'purple' },
+              { icon: Trophy, title: 'Top Lists', desc: 'Best by position', color: 'amber', pro: true },
+              { icon: Target, title: 'Role Finder', desc: 'Find perfect fits', color: 'rose', pro: true },
+              { icon: TrendingUp, title: 'Projections', desc: 'Future potential', color: 'cyan', pro: true },
+            ].map((item, i) => (
+              <Card key={i} dark={dark} hover className={`p-4 ${!gameLoaded && !item.pro ? 'opacity-50' : ''}`}>
+                <div className={`w-10 h-10 rounded-xl ${quickActionStyle[item.color]?.bg || quickActionStyle.blue.bg} flex items-center justify-center mb-3`}>
+                  <item.icon size={20} className={`${quickActionStyle[item.color]?.text || quickActionStyle.blue.text}`} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <h3 className={`font-medium ${text}`}>{item.title}</h3>
+                  {item.pro && <Crown size={12} className="text-amber-500" />}
+                </div>
+                <p className={`text-xs ${muted} mt-1`}>{item.desc}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h2 className={`text-sm font-semibold ${muted} uppercase tracking-wider mb-4`}>Getting Started</h2>
+          <Card dark={dark} className="divide-y divide-slate-700/50">
+            {[
+              { step: 1, title: 'Launch Football Manager', done: gameLoaded },
+              { step: 2, title: 'Load your save game', done: gameLoaded },
+              { step: 3, title: 'Click "Detect Running FM"', done: gameLoaded },
+              { step: 4, title: 'Start scouting!', done: false },
+            ].map((item, i) => (
+              <div key={i} className={`flex items-center gap-4 p-4 ${hover}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${item.done ? 'bg-emerald-500/20 text-emerald-400' : dark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                  {item.done ? <Check size={16} /> : item.step}
+                </div>
+                <span className={`${text} ${item.done ? 'line-through opacity-50' : ''}`}>{item.title}</span>
+              </div>
+            ))}
+          </Card>
+        </div>
+      </div>
+    </main>
+  );
+};
+
+// ============================================
+// Screen: Search & Filters (Players / Staff / Clubs)
+// ============================================
+// NOTE: Sample dataset is shared between Search → Profile to enable real navigation flow.
+const SAMPLE_PLAYERS = [
+  {
+    id: 'p_yamal',
+    name: 'Lamine Yamal',
+    age: 17,
+    dob: '2007-07-13',
+    club: 'FC Barcelona',
+    nation: '🇪🇸',
+    pos: 'RW',
+    positionsLabel: 'Right Winger, AM(R)',
+    ca: 156,
+    pa: 189,
+    value: '€120M',
+    contract: { until: '2029-06-30', wage: '€65k p/w' },
+    lastUpdated: '2025-12-13T08:32:00Z',
+    foot: 'Left',
+    injury: { status: 'fit' },
+    personality: 'Driven',
+    mediaHandling: 'Reserved',
+    tag: 'hot',
+    attrs: {
+      pace: 17, acceleration: 17, dribbling: 16, technique: 15, firstTouch: 14, passing: 12, vision: 12,
+      offTheBall: 15, decisions: 12, composure: 12, crossing: 13, workRate: 12, teamwork: 11, stamina: 13,
+      tackling: 7, positioning: 7, anticipation: 10, strength: 9, agility: 15, balance: 12, finishing: 11,
+    },
+    form: [7.1, 6.8, 7.4, 7.6, 7.3],
+  },
+  {
+    id: 'p_endrick',
+    name: 'Endrick',
+    age: 18,
+    dob: '2006-07-21',
+    club: 'Real Madrid',
+    nation: '🇧🇷',
+    pos: 'ST',
+    positionsLabel: 'Striker (ST)',
+    ca: 142,
+    pa: 182,
+    value: '€80M',
+    contract: { until: '2030-06-30', wage: '€55k p/w' },
+    lastUpdated: '2025-12-12T19:05:00Z',
+    foot: 'Right',
+    injury: { status: 'fit' },
+    personality: 'Professional',
+    mediaHandling: 'Level-headed',
+    tag: 'rising',
+    attrs: {
+      pace: 15, acceleration: 16, dribbling: 13, technique: 13, firstTouch: 13, passing: 10, vision: 9,
+      offTheBall: 15, decisions: 12, composure: 14, crossing: 6, workRate: 13, teamwork: 11, stamina: 13,
+      tackling: 7, positioning: 8, anticipation: 12, strength: 14, agility: 12, balance: 13, finishing: 16,
+    },
+    form: [6.9, 7.0, 7.2, 6.7, 7.1],
+  },
+  {
+    id: 'p_wze',
+    name: 'Warren Zaïre-Emery',
+    age: 18,
+    dob: '2006-03-08',
+    club: 'PSG',
+    nation: '🇫🇷',
+    pos: 'CM',
+    positionsLabel: 'Central Midfielder (CM)',
+    ca: 148,
+    pa: 178,
+    value: '€90M',
+    contract: { until: '2029-06-30', wage: '€90k p/w' },
+    lastUpdated: '2025-12-13T11:10:00Z',
+    foot: 'Right',
+    injury: { status: 'fit' },
+    personality: 'Determined',
+    mediaHandling: 'Calm',
+    attrs: {
+      pace: 13, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 14, vision: 13,
+      offTheBall: 12, decisions: 13, composure: 13, crossing: 8, workRate: 15, teamwork: 14, stamina: 15,
+      tackling: 12, positioning: 12, anticipation: 12, strength: 12, agility: 12, balance: 13, finishing: 9,
+    },
+    form: [7.0, 6.8, 7.3, 7.1, 7.2],
+  },
+  {
+    id: 'p_gavi',
+    name: 'Gavi',
+    age: 19,
+    dob: '2004-08-05',
+    club: 'FC Barcelona',
+    nation: '🇪🇸',
+    pos: 'CM',
+    positionsLabel: 'Central Midfielder (CM)',
+    ca: 158,
+    pa: 180,
+    value: '€100M',
+    contract: { until: '2030-06-30', wage: '€120k p/w' },
+    lastUpdated: '2025-12-11T15:41:00Z',
+    foot: 'Right',
+    injury: { status: 'fit' },
+    personality: 'Spirited',
+    mediaHandling: 'Volatile',
+    attrs: {
+      pace: 13, acceleration: 14, dribbling: 13, technique: 13, firstTouch: 14, passing: 14, vision: 13,
+      offTheBall: 13, decisions: 13, composure: 12, crossing: 9, workRate: 16, teamwork: 15, stamina: 16,
+      tackling: 12, positioning: 12, anticipation: 13, strength: 10, agility: 14, balance: 13, finishing: 9,
+    },
+    form: [7.4, 7.1, 7.0, 7.3, 7.2],
+  },
+  {
+    id: 'p_mainoo',
+    name: 'Kobbie Mainoo',
+    age: 19,
+    dob: '2005-04-19',
+    club: 'Man United',
+    nation: '🏴',
+    pos: 'CM',
+    positionsLabel: 'Central Midfielder (CM)',
+    ca: 138,
+    pa: 172,
+    value: '€55M',
+    contract: { until: '2028-06-30', wage: '€35k p/w' },
+    lastUpdated: '2025-12-10T09:18:00Z',
+    foot: 'Right',
+    injury: { status: 'injured', until: '2026-01-05', desc: 'Sprained ankle' },
+    personality: 'Balanced',
+    mediaHandling: 'Reserved',
+    tag: 'bargain',
+    attrs: {
+      pace: 12, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 13, vision: 12,
+      offTheBall: 11, decisions: 12, composure: 12, crossing: 8, workRate: 14, teamwork: 13, stamina: 14,
+      tackling: 12, positioning: 12, anticipation: 12, strength: 11, agility: 12, balance: 12, finishing: 8,
+    },
+    form: [6.8, 7.0, 6.9, 7.1, 7.0],
+  },
+  {
+    id: 'p_cubarsi',
+    name: 'Pau Cubarsí',
+    age: 17,
+    dob: '2007-01-22',
+    club: 'FC Barcelona',
+    nation: '🇪🇸',
+    pos: 'CB',
+    positionsLabel: 'Centre-Back (CB)',
+    ca: 144,
+    pa: 176,
+    value: '€60M',
+    contract: { until: '2029-06-30', wage: '€25k p/w' },
+    lastUpdated: '2025-12-13T07:55:00Z',
+    foot: 'Right',
+    injury: { status: 'fit' },
+    personality: 'Fairly Professional',
+    mediaHandling: 'Unflappable',
+    tag: 'rising',
+    attrs: {
+      pace: 13, acceleration: 12, dribbling: 8, technique: 9, firstTouch: 10, passing: 12, vision: 10,
+      offTheBall: 6, decisions: 13, composure: 14, crossing: 5, workRate: 13, teamwork: 13, stamina: 13,
+      tackling: 15, positioning: 15, anticipation: 14, strength: 14, agility: 10, balance: 14, finishing: 4,
+    },
+    form: [7.2, 7.4, 7.0, 7.3, 7.1],
+  },
+
+{
+  id: 'p_donnarumma',
+  name: 'Gianluigi Donnarumma',
+  age: 26,
+  dob: '1999-02-25',
+  club: 'PSG',
+  nation: '🇮🇹',
+  pos: 'GK',
+  positionsLabel: 'Goalkeeper (GK)',
+  ca: 165,
+  pa: 175,
+  value: '€70M',
+  contract: { until: '2028-06-30', wage: '€190k p/w' },
+  lastUpdated: '2025-12-13T09:20:00Z',
+  foot: 'Right',
+  injury: { status: 'fit' },
+  personality: 'Resolute',
+  mediaHandling: 'Reserved',
+  tag: 'elite',
+  attrs: {
+    // Goalkeeping
+    aerialReach: 16, handling: 17, punching: 14, commandOfArea: 15, communication: 14,
+    kicking: 15, throwing: 14, oneOnOnes: 16, reflexes: 17, eccentricity: 9, rushingOut: 13,
+    // Shared / outfield
+    passing: 12, firstTouch: 10,
+    // Mental + Physical
+    composure: 15, decisions: 14, concentration: 15, anticipation: 14, bravery: 15, determination: 14, leadership: 11, aggression: 10,
+    agility: 14, balance: 13, strength: 14, jumpingReach: 15, pace: 11, acceleration: 11, stamina: 10, naturalFitness: 12,
+  },
+  form: [7.2, 7.0, 7.4, 7.1, 7.3],
+},
+{
+  id: 'p_maignan',
+  name: 'Mike Maignan',
+  age: 30,
+  dob: '1995-07-03',
+  club: 'AC Milan',
+  nation: '🇫🇷',
+  pos: 'GK',
+  positionsLabel: 'Goalkeeper (GK)',
+  ca: 160,
+  pa: 168,
+  value: '€45M',
+  contract: { until: '2027-06-30', wage: '€135k p/w' },
+  lastUpdated: '2025-12-12T12:10:00Z',
+  foot: 'Right',
+  injury: { status: 'fit' },
+  personality: 'Professional',
+  mediaHandling: 'Calm',
+  tag: 'elite',
+  attrs: {
+    aerialReach: 15, handling: 16, punching: 13, commandOfArea: 14, communication: 15,
+    kicking: 16, throwing: 15, oneOnOnes: 15, reflexes: 16, eccentricity: 10, rushingOut: 15,
+    passing: 13, firstTouch: 11,
+    composure: 14, decisions: 14, concentration: 14, anticipation: 15, bravery: 14, determination: 13, leadership: 12, aggression: 11,
+    agility: 14, balance: 13, strength: 13, jumpingReach: 14, pace: 12, acceleration: 12, stamina: 11, naturalFitness: 13,
+  },
+  form: [7.1, 7.2, 6.9, 7.3, 7.0],
+},
+
+];
+
+const PlayerSearchScreen = ({ dark, players = SAMPLE_PLAYERS, onSelectPlayer, isShortlisted, isFavorite, isCompared }) => {
+  const [entity, setEntity] = useState('players'); // players | staff | clubs
+  const [selectedPreset, setSelectedPreset] = useState('wonderkids');
+  const [onlyShortlist, setOnlyShortlist] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+
+  // Role Fit profile (wired to Rating Engine presets)
+  const [roleMode, setRoleMode] = useState('pair'); // 'pair' | 'single'
+  const [ipRoleId, setIpRoleId] = useState('iwsa');
+  const [oopRoleId, setOopRoleId] = useState('pf');
+  const [ipShare, setIpShare] = useState(65);
+  const [packsIP, setPacksIP] = useState(['chance_creation']);
+  const [packsOOP, setPacksOOP] = useState(['pressing_intensity']);
+
+  // Lightweight undo/redo for filter state (prototype)
+  const [history, setHistory] = useState([]);
+  const [future, setFuture] = useState([]);
+
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const surface = dark ? 'bg-slate-800/50 backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl';
+  const surfaceSolid = dark ? 'bg-slate-800' : 'bg-white';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hover = dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50';
+
+  const presetsByEntity = {
+    players: ['Wonderkids', 'Free Agents', 'Bargains', 'Expiring'],
+    staff: ['Head of Youth', 'Assistant', 'Scout', 'Physio'],
+    clubs: ['Vacancies', 'Top Facilities', 'Rich Clubs', 'Relegation Zone'],
+  };
+
+  // Players are now passed in so Search and Profile share the same dataset.
+
+  const staff = [
+    { name: 'Miguel Santos', age: 44, nation: '🇵🇹', role: 'Scout', rep: 3.5, ca: 118, pa: 128, stars: { judgePA: 4.0, judgeCA: 3.5, adapt: 4.0 }, trait: 'Judging Potential (14)' },
+    { name: 'Daniel Clarke', age: 39, nation: '🏴', role: 'Assistant Manager', rep: 4.0, ca: 132, pa: 140, stars: { motiv: 4.5, tact: 3.5, man: 4.0 }, trait: 'Motivation (16)' },
+    { name: 'Rui Almeida', age: 51, nation: '🇵🇹', role: 'HoYD', rep: 4.5, ca: 142, pa: 150, stars: { youth: 4.5, work: 4.0, judgePA: 4.0 }, trait: 'Working With Youngsters (17)' },
+    { name: 'Alex Chen', age: 33, nation: '🇨🇳', role: 'Physio', rep: 3.0, ca: 110, pa: 120, stars: { phys: 4.0, rehab: 3.5 }, trait: 'Physio (15)' },
+  ];
+
+  const clubs = [
+    { name: 'Brighton', country: 'England', league: 'Premier League', rep: 4.0, finances: 72, facilities: 85, vacancy: false },
+    { name: 'Sporting CP', country: 'Portugal', league: 'Liga Portugal', rep: 4.5, finances: 68, facilities: 80, vacancy: true },
+    { name: 'Feyenoord', country: 'Netherlands', league: 'Eredivisie', rep: 4.0, finances: 61, facilities: 78, vacancy: false },
+    { name: 'Celtic', country: 'Scotland', league: 'Premiership', rep: 4.0, finances: 59, facilities: 74, vacancy: true },
+  ];
+
+  // Compute Role Fit using current role pair + packs (mirrors Rating Engine wiring)
+  const roleMix = roleMode === 'single' ? { ip: 1, oop: 0 } : { ip: ipShare / 100, oop: 1 - ipShare / 100 };
+  const roleIP = getRoleById(ipRoleId);
+  const roleOOP = getRoleById(oopRoleId);
+
+  const roleIPWeights = buildEffectiveWeights(roleIP.ipWeights, {}, packsIP, 'ip');
+  const roleOOPWeights = roleMode === 'pair' ? buildEffectiveWeights(roleOOP.oopWeights, {}, packsOOP, 'oop') : {};
+
+  const toggleRolePack = (scope, id) => {
+    const setter = scope === 'ip' ? setPacksIP : setPacksOOP;
+    const current = scope === 'ip' ? packsIP : packsOOP;
+    if (current.includes(id)) setter(current.filter(x => x !== id));
+    else setter([...current, id]);
+  };
+
+  const playersWithRoleFit = players
+    .map((p) => ({ ...p, roleFit: calcRolePairScore({ attrs: p.attrs, ipWeights: roleIPWeights, oopWeights: roleOOPWeights, mix: roleMix }).total }))
+    .sort((a, b) => b.roleFit - a.roleFit);
+
+  const filteredPlayersWithRoleFit = (onlyShortlist && typeof isShortlisted === 'function')
+    ? playersWithRoleFit.filter((p) => isShortlisted(p.id))
+    : playersWithRoleFit;
+
+
+  const pushHistory = (snapshot) => {
+    setHistory((h) => [...h.slice(-20), snapshot]);
+    setFuture([]);
+  };
+
+  const undo = () => {
+    setHistory((h) => {
+      if (!h.length) return h;
+      const prev = h[h.length - 1];
+      setFuture((f) => [{ entity, selectedPreset, onlyShortlist, showWizard }, ...f]);
+      setEntity(prev.entity);
+      setSelectedPreset(prev.selectedPreset);
+      setOnlyShortlist(prev.onlyShortlist);
+      return h.slice(0, -1);
+    });
+  };
+
+  const redo = () => {
+    setFuture((f) => {
+      if (!f.length) return f;
+      const next = f[0];
+      pushHistory({ entity, selectedPreset, onlyShortlist, showWizard });
+      setEntity(next.entity);
+      setSelectedPreset(next.selectedPreset);
+      setOnlyShortlist(next.onlyShortlist);
+      return f.slice(1);
+    });
+  };
+
+  const onSwitchEntity = (next) => {
+    if (next === entity) return;
+    pushHistory({ entity, selectedPreset, onlyShortlist, showWizard });
+    setEntity(next);
+    setSelectedPreset(presetsByEntity[next][0].toLowerCase().replace(/\s+/g, ''));
+  };
+
+  const resultsCount = entity === 'players' ? filteredPlayersWithRoleFit.length : entity === 'staff' ? 312 : 64;
+
+  const FilterWizard = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-black/50" onClick={() => setShowWizard(false)} />
+      <div className={`relative w-full max-w-2xl rounded-3xl border ${border} ${dark ? 'bg-slate-900' : 'bg-white'} shadow-2xl overflow-hidden`}>
+        <div className={`p-5 border-b ${border} flex items-center justify-between`}>
+          <div>
+            <div className={`text-sm font-semibold ${text}`}>Filter Wizard</div>
+            <div className={`text-xs ${muted}`}>Guided setup → basic first, advanced later (per dev doc)</div>
+          </div>
+          <Button variant="ghost" size="sm" dark={dark} icon={X} onClick={() => setShowWizard(false)} />
+        </div>
+
+        <div className="p-5 grid grid-cols-2 gap-5">
+          <Card dark={dark} className="p-4">
+            <div className={`text-xs ${muted} uppercase tracking-wider mb-3`}>Step 1 • Basics</div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className={`text-sm ${text}`}>Entity</span>
+                <div className="flex gap-1.5">
+                  {['players', 'staff', 'clubs'].map((k) => (
+                    <button key={k} onClick={() => onSwitchEntity(k)} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${entity === k ? 'bg-blue-500 text-white' : `${dark ? 'bg-slate-800' : 'bg-slate-100'} ${muted}`}`}>
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className={`text-sm ${text} mb-1`}>Preset</div>
+                <div className="flex flex-wrap gap-2">
+                  {presetsByEntity[entity].map((p) => {
+                    const id = p.toLowerCase().replace(/\s+/g, '');
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setSelectedPreset(id)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium ${selectedPreset === id ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : `${dark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'} ${muted}`}`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className={`p-3 rounded-2xl ${dark ? 'bg-slate-800' : 'bg-slate-50'} border ${border}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className={`text-sm font-medium ${text}`}>Limit to shortlist</div>
+                    <div className={`text-xs ${muted}`}>Toggle to restrict results to a shortlist</div>
+                  </div>
+                  <button
+                    onClick={() => setOnlyShortlist(v => !v)}
+                    className={`w-12 h-7 rounded-full transition-all ${onlyShortlist ? 'bg-blue-500' : dark ? 'bg-slate-700' : 'bg-slate-200'}`}
+                  >
+                    <div className={`w-6 h-6 rounded-full bg-white shadow transform transition-all ${onlyShortlist ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card dark={dark} className="p-4">
+            <div className={`text-xs ${muted} uppercase tracking-wider mb-3`}>Step 2 • Advanced</div>
+            <div className="space-y-3">
+              <div className={`p-3 rounded-2xl ${dark ? 'bg-slate-800' : 'bg-slate-50'} border ${border}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Filter size={16} className="text-blue-500" />
+                  <div className={`text-sm font-medium ${text}`}>Progressive disclosure</div>
+                </div>
+                <div className={`text-xs ${muted}`}>CA/PA sliders, contract clauses, attributes thresholds… (placeholder)</div>
+              </div>
+              <div className={`p-3 rounded-2xl ${dark ? 'bg-slate-800' : 'bg-slate-50'} border ${border}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <History size={16} className="text-blue-500" />
+                  <div className={`text-sm font-medium ${text}`}>Save + History</div>
+                </div>
+                <div className={`text-xs ${muted}`}>Save as favourite preset, and undo/redo recent filter sets.</div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className={`p-5 border-t ${border} flex items-center justify-between`}>
+          <div className={`text-xs ${muted}`}>This wizard is a UI affordance; actual filters are still editable in the sidebar.</div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" dark={dark} onClick={() => setShowWizard(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" icon={Check} onClick={() => setShowWizard(false)}>Apply</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`flex-1 flex ${bg}`}>
+      {/* Filters Panel */}
+      <div className={`w-80 ${surface} border-r ${border} flex flex-col`}>
+        <div className={`border-b ${border}`}>
+          <div className="flex">
+            {[
+              { key: 'players', label: 'Players', icon: Users },
+              { key: 'staff', label: 'Staff', icon: UserCog },
+              { key: 'clubs', label: 'Clubs', icon: Building2 },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => onSwitchEntity(tab.key)}
+                className={`flex-1 py-4 text-sm font-medium relative ${tab.key === entity ? text : muted}`}
+              >
+                <span className="inline-flex items-center gap-2 justify-center">
+                  <tab.icon size={16} />
+                  {tab.label}
+                </span>
+                {tab.key === entity && <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-blue-500 rounded-full" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-slate-700/30">
+          <div className="flex items-center justify-between mb-3">
+            <div className={`text-xs uppercase tracking-wider ${muted}`}>Quick Presets</div>
+            <Button variant="ghost" size="sm" dark={dark} icon={Zap} onClick={() => setShowWizard(true)}>Wizard</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {presetsByEntity[entity].map((preset) => {
+              const id = preset.toLowerCase().replace(/\s+/g, '');
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    pushHistory({ entity, selectedPreset, onlyShortlist, showWizard });
+                    setSelectedPreset(id);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                    selectedPreset === id
+                      ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
+                      : `${dark ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'} ${muted}`
+                  }`}
+                >
+                  {preset}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={`mt-4 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/30' : 'bg-white'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className={`text-sm font-medium ${text}`}>Limit to shortlist</div>
+                <div className={`text-xs ${muted}`}>Shortlist-first workflow toggle</div>
+              </div>
+              <button
+                onClick={() => {
+                  pushHistory({ entity, selectedPreset, onlyShortlist, showWizard });
+                  setOnlyShortlist(v => !v);
+                }}
+                className={`w-12 h-7 rounded-full transition-all ${onlyShortlist ? 'bg-blue-500' : dark ? 'bg-slate-700' : 'bg-slate-200'}`}
+              >
+                <div className={`w-6 h-6 rounded-full bg-white shadow transform transition-all ${onlyShortlist ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto p-4 space-y-3">
+          <Card dark={dark} className="overflow-hidden">
+            <button className={`w-full flex items-center justify-between p-4 ${hover}`}>
+              <span className={`font-medium ${text}`}>Filters</span>
+              <ChevronUp size={18} className={muted} />
+            </button>
+            <div className="px-4 pb-4 space-y-4">
+              <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <HelpCircle size={14} className={muted} />
+                  <div className={`text-sm font-medium ${text}`}>Unified filters</div>
+                </div>
+                <div className={`text-xs ${muted}`}>Group by entity (General, Ability, Contract, Attributes). Real controls omitted for brevity.</div>
+              </div>
+
+              {entity === 'staff' && (
+                <div>
+                  <label className={`text-xs ${muted} mb-2 block`}>Reputation</label>
+                  <div className="flex items-center gap-2">
+                    {[1,2,3,4,5].map((i) => (
+                      <Star key={i} size={14} className={i <= 4 ? 'text-amber-500' : muted} />
+                    ))}
+                    <span className={`text-xs ${muted}`}>≥ 4 stars</span>
+                  </div>
+                </div>
+              )}
+
+              {entity === 'clubs' && (
+                <div>
+                  <label className={`text-xs ${muted} mb-2 block`}>Facilities</label>
+                  <div className={`h-2 ${dark ? 'bg-slate-700' : 'bg-slate-200'} rounded-full relative`}>
+                    <div className="absolute left-[55%] right-[10%] h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full" />
+                  </div>
+                  <div className={`text-xs ${muted} mt-1`}>Min 70 / 100</div>
+                </div>
+              )}
+            </div>
+          </Card>
+          {entity === 'players' && (
+            <Card dark={dark} className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`text-xs uppercase tracking-wider ${muted}`}>Role Fit Profile</div>
+                <Badge variant="primary" size="xs">wired</Badge>
+              </div>
+
+              <RolePairSelector
+                dark={dark}
+                compact
+                mode={roleMode}
+                ipRoleId={ipRoleId}
+                oopRoleId={oopRoleId}
+                onModeChange={setRoleMode}
+                onChange={({ ipRoleId: ip, oopRoleId: oop }) => {
+                  setIpRoleId(ip);
+                  setOopRoleId(oop);
+                }}
+              />
+
+              <div className={`mt-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`text-xs ${muted}`}>IP / OOP mix</div>
+                  <div className={`text-xs ${muted}`}>{roleMode === 'single' ? 'IP only' : `${ipShare}% / ${100 - ipShare}%`}</div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={roleMode === 'single' ? 100 : ipShare}
+                  onChange={(e) => setIpShare(Number(e.target.value))}
+                  disabled={roleMode === 'single'}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="mt-3">
+                <div className={`text-[10px] uppercase tracking-wider ${muted} mb-2`}>Modifier Packs</div>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {['ball_progression', 'chance_creation', 'athleticism'].map((pid) => {
+                      const p = FM26_MODIFIER_PACKS.find(x => x.id === pid);
+                      const active = packsIP.includes(pid);
+                      return (
+                        <button
+                          key={pid}
+                          onClick={() => toggleRolePack('ip', pid)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
+                            active ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
+                          }`}
+                        >
+                          {p?.name || pid} <span className={muted}>IP</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {roleMode === 'pair' && (
+                    <div className="flex flex-wrap gap-2">
+                      {['pressing_intensity', 'defensive_duels', 'athleticism'].map((pid) => {
+                        const p = FM26_MODIFIER_PACKS.find(x => x.id === pid);
+                        const active = packsOOP.includes(pid);
+                        return (
+                          <button
+                            key={pid}
+                            onClick={() => toggleRolePack('oop', pid)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
+                              active ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
+                            }`}
+                          >
+                            {p?.name || pid} <span className={muted}>OOP</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+
+
+
+          <div className={`${surfaceSolid} rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent`}>
+            <button className="w-full flex items-center gap-3 p-4">
+              <Crown size={16} className="text-amber-500" />
+              <span className={`font-medium ${text} flex-1 text-left`}>Smart Suggestions</span>
+              <Badge variant="gold" size="xs">g</Badge>
+            </button>
+            <div className="px-4 pb-4">
+              <div className={`text-xs ${muted}`}>Example: “Left-footed winger” based on squad gap (placeholder)</div>
+            </div>
+          </div>
+        </div>
+
+        <div className={`p-4 border-t ${border} ${surface}`}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Activity size={16} className="text-blue-500" />
+              <span className={`text-sm ${text}`}><span className="font-bold text-blue-400">{resultsCount}</span> results</span>
+            </div>
+            <button className={`text-xs ${muted} hover:text-red-400`}>Clear All</button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" icon={Save} dark={dark} className="flex-1">Save Preset</Button>
+            <Button variant="ghost" size="sm" icon={History} dark={dark} onClick={undo} disabled={!history.length} />
+            <Button variant="ghost" size="sm" icon={RefreshCw} dark={dark} onClick={redo} disabled={!future.length} />
+          </div>
+        </div>
+      </div>
+
+      {/* Results */}
+      <div className="flex-1 flex flex-col">
+        <header className={`h-14 ${surface} border-b ${border} flex items-center px-6 gap-4`}>
+          <h1 className={`font-semibold ${text}`}>
+            {entity === 'players' ? 'Players' : entity === 'staff' ? 'Staff' : 'Clubs'}
+          </h1>
+          <Badge variant="primary">{resultsCount} results</Badge>
+          {onlyShortlist && <Badge variant="warning">Shortlist-only</Badge>}
+          {entity === 'players' && (
+            <Badge variant="primary">
+              {getRoleById(ipRoleId).name}{roleMode === 'pair' ? ` ↔ ${getRoleById(oopRoleId).name}` : ''}
+            </Badge>
+          )}
+          <div className="flex-1" />
+          <Button variant="ghost" size="sm" icon={Columns} dark={dark}>Columns</Button>
+          <Button variant="ghost" size="sm" icon={Download} dark={dark}>Export</Button>
+        </header>
+
+        <div className="flex-1 overflow-auto">
+          {entity === 'players' && (
+            <table className="w-full">
+              <thead className={`${dark ? 'bg-slate-800/80' : 'bg-slate-50'} sticky top-0 z-10`}>
+                <tr className={`text-xs ${muted} uppercase tracking-wider`}>
+                  <th className="text-left p-4 w-10"><input type="checkbox" /></th>
+                  <th className="text-left p-4">Player</th>
+                  <th className="text-left p-4">Position</th>
+                  <th className="text-center p-4">Age</th>
+                  <th className="text-center p-4">CA</th>
+                  <th className="text-center p-4">PA</th>
+                  <th className="text-center p-4">Role Fit</th>
+                  <th className="text-right p-4">Value</th>
+                  <th className="text-center p-4 w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPlayersWithRoleFit.map((player) => (
+                  <tr
+                    key={player.id}
+                    className={`border-b ${border} ${hover} ${onSelectPlayer ? 'cursor-pointer' : ''}`}
+                    onClick={() => onSelectPlayer?.(player.id)}
+                  >
+                    <td className="p-4"><input type="checkbox" onClick={(e) => e.stopPropagation()} /></td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar dark={dark} name={player.name} size="sm" />
+                        <div>
+                          <div className={`font-medium ${text} flex items-center gap-2`}>
+                            {player.name} <span className="text-sm">{player.nation}</span>
+                            {typeof isFavorite === 'function' && isFavorite(player.id) && <Star size={14} className="text-amber-500" fill="currentColor" title="Favourite" />}
+                            {typeof isShortlisted === 'function' && isShortlisted(player.id) && <List size={14} className="text-blue-400" title="Shortlisted" />}
+                            {typeof isCompared === 'function' && isCompared(player.id) && <GitCompare size={14} className="text-emerald-400" title="In Compare" />}
+                            {player.tag && <Badge variant={player.tag === 'bargain' ? 'success' : 'warning'} size="xs">{player.tag}</Badge>}
+                          </div>
+                          <div className={`text-xs ${muted}`}>{player.club}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`p-4 ${muted}`}>{player.pos}</td>
+                    <td className={`p-4 text-center ${muted}`}>{calcAgeFromDOB(player.dob, player.age)}</td>
+                    <td className="p-4 text-center"><span className="text-emerald-400 font-semibold">{player.ca}</span></td>
+                    <td className="p-4 text-center"><span className="text-blue-400 font-semibold">{player.pa}</span></td>
+                    <td className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-20"><ProgressBar value={player.roleFit} max={100} variant={player.roleFit >= 85 ? 'success' : 'warning'} size="sm" /></div>
+                        <span className={`text-xs ${player.roleFit >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>{player.roleFit}%</span>
+                      </div>
+                    </td>
+                    <td className={`p-4 text-right ${muted}`}>{player.value}</td>
+                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" icon={MoreHorizontal} dark={dark} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {entity === 'staff' && (
+            <div className="p-6 grid grid-cols-2 gap-4">
+              {staff.map((s) => (
+                <Card key={s.name} dark={dark} hover className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar dark={dark} name={s.name} size="lg" />
+                    <div className="flex-1">
+                      <div className={`font-semibold ${text}`}>{s.name} <span className="ml-2">{s.nation}</span></div>
+                      <div className={`text-sm ${muted}`}>{s.role} • {s.age} years</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-xs ${muted}`}>Rep</div>
+                      <div className="flex justify-end">
+                        {[1,2,3,4,5].map((i) => (
+                          <Star key={i} size={14} className={i <= Math.round(s.rep) ? 'text-amber-500' : muted} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl ${dark ? 'bg-slate-700/40' : 'bg-slate-50'} border ${border}`}>
+                    <div className="flex items-center justify-between">
+                      <div className={`text-sm ${text}`}>Key stars</div>
+                      <Badge variant="primary" size="xs">{s.trait}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-3">
+                      {Object.entries(s.stars).slice(0,3).map(([k,v]) => (
+                        <div key={k} className="text-center">
+                          <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{k}</div>
+                          <div className="flex justify-center mt-1">
+                            {[1,2,3,4,5].map((i) => (
+                              <Star key={i} size={12} className={i <= Math.round(v) ? 'text-amber-500' : muted} />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {entity === 'clubs' && (
+            <div className="p-6 space-y-3">
+              {clubs.map((c) => (
+                <Card key={c.name} dark={dark} hover className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-2xl ${dark ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center`}>
+                      <Building2 size={22} className="text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`font-semibold ${text}`}>{c.name}</div>
+                        {c.vacancy && <Badge variant="warning" size="xs">Vacancy</Badge>}
+                      </div>
+                      <div className={`text-sm ${muted}`}>{c.country} • {c.league}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="min-w-[140px]">
+                        <div className={`text-xs ${muted} mb-1`}>Facilities</div>
+                        <ProgressBar value={c.facilities} max={100} variant={c.facilities >= 80 ? 'success' : 'warning'} size="sm" />
+                      </div>
+                      <div className="min-w-[140px]">
+                        <div className={`text-xs ${muted} mb-1`}>Finances</div>
+                        <ProgressBar value={c.finances} max={100} variant={c.finances >= 70 ? 'success' : 'warning'} size="sm" />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showWizard && <FilterWizard />}
+    </div>
+  );
+};
+
+
+// ============================================
+// Screen: Player Profile (NO OVERLAY)
+// ============================================
+
+// ============================================
+// Screen: Player Profile (Data-driven + actions + tabs)
+// ============================================
+const PlayerProfileScreen = ({
+  dark,
+  player,
+  onBack,
+
+  // State-driven actions
+  shortlists = [{ id: 'fm-shortlist', name: 'FM Shortlist', color: 'blue' }],
+  shortlistEntries = {},
+  onAddToShortlist,
+  onRemoveFromShortlist,
+
+  comparisonIds = [],
+  onToggleCompare,
+
+  onCreateHistoryPoint,
+
+  isFavorite,
+  onToggleFavorite,
+
+  pushToast,
+
+  playerReports = {},
+  onSavePlayerReport,
+}) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showShortlistModal, setShowShortlistModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  const [shortlistDraft, setShortlistDraft] = useState({ listId: shortlists?.[0]?.id || 'fm-shortlist', tag: 'target', note: '' });
+  const [historyLabel, setHistoryLabel] = useState('Manual snapshot');
+
+  // Role Fit (FM26 Rating Engine) — local config for this profile session
+  const defaultRoleIds = useMemo(() => guessRoleIdsFromPos(player?.pos), [player?.id, player?.pos]);
+  const [roleMode, setRoleMode] = useState('pair'); // 'pair' | 'single'
+  const [ipRoleId, setIpRoleId] = useState(defaultRoleIds.ip);
+  const [oopRoleId, setOopRoleId] = useState(defaultRoleIds.oop);
+  const [ipShare, setIpShare] = useState(70); // % weight for IP when in pair mode
+  const [packsIP, setPacksIP] = useState([]);
+  const [packsOOP, setPacksOOP] = useState([]);
+
+  useEffect(() => {
+    // Reset defaults when a different player is opened
+    const ids = guessRoleIdsFromPos(player?.pos);
+    setRoleMode('pair');
+    setIpRoleId(ids.ip);
+    setOopRoleId(ids.oop);
+    setIpShare(70);
+    setPacksIP([]);
+    setPacksOOP([]);
+  }, [player?.id, player?.pos]);
+
+
+  // Positions selector (Positions tab)
+  const [selectedPosition, setSelectedPosition] = useState(() => {
+    const list = parsePositionsLabel(player?.positionsLabel, player?.pos);
+    return list?.[0] || player?.pos || '';
+  });
+
+  useEffect(() => {
+    const list = parsePositionsLabel(player?.positionsLabel, player?.pos);
+    setSelectedPosition(list?.[0] || player?.pos || '');
+  }, [player?.id, player?.positionsLabel, player?.pos]);
+
+// Attribute groups (FM26) — defaults depend on GK vs outfield.
+const isGKPlayer = isGoalkeeperPlayer(player);
+const defaultAttrGroups = useMemo(
+  () => (isGKPlayer ? DEFAULT_GROUPS_GK : DEFAULT_GROUPS_OUTFIELD),
+  [player?.id, isGKPlayer]
+);
+
+const [visibleAttrGroups, setVisibleAttrGroups] = useState(defaultAttrGroups);
+const [collapsedAttrGroups, setCollapsedAttrGroups] = useState(() => {
+  const m = {};
+  (defaultAttrGroups || []).forEach((g) => { m[g] = false; });
+  return m;
+});
+
+const attrGroupRefs = useRef({});
+
+useEffect(() => {
+  setVisibleAttrGroups(defaultAttrGroups);
+  const m = {};
+  (defaultAttrGroups || []).forEach((g) => { m[g] = false; });
+  setCollapsedAttrGroups(m);
+  attrGroupRefs.current = {};
+}, [player?.id]); // reset on player switch
+
+
+  // Report state (persisted via app-level store)
+  const storedReport = playerReports?.[player?.id] || null;
+  const defaultReport = useMemo(() => ({
+    recommendation: storedReport?.recommendation || 'shortlist', // sign | shortlist | monitor | avoid
+    confidence: typeof storedReport?.confidence === 'number' ? storedReport.confidence : 65,
+    ratingStars: typeof storedReport?.ratingStars === 'number' ? storedReport.ratingStars : 4,
+    tags: Array.isArray(storedReport?.tags) ? storedReport.tags : [],
+    pros: Array.isArray(storedReport?.pros) ? storedReport.pros : [],
+    cons: Array.isArray(storedReport?.cons) ? storedReport.cons : [],
+    note: storedReport?.note || '',
+    updatedAt: storedReport?.updatedAt || null,
+  }), [player?.id, storedReport]);
+
+  const [reportDraft, setReportDraft] = useState(defaultReport);
+  const [reportProInput, setReportProInput] = useState('');
+  const [reportConInput, setReportConInput] = useState('');
+
+  useEffect(() => {
+    setReportDraft(defaultReport);
+    setReportProInput('');
+    setReportConInput('');
+  }, [defaultReport]);
+
+  const toast = (variant, title, message) => pushToast?.({ variant, title, message });
+
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const surface = dark ? 'bg-slate-800/95' : 'bg-white/95';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hover = dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50';
+
+  if (!player) {
+    return (
+      <div className={`w-full h-full ${surface} flex items-center justify-center p-6`}>
+        <EmptyState
+          icon={Users}
+          title="No player selected"
+          description="Go back to Player Search and select a player to open their profile."
+          action={onBack ? <Button variant="secondary" size="sm" dark={dark} icon={ChevronLeft} onClick={onBack}>Back to Search</Button> : null}
+          dark={dark}
+        />
+      </div>
+    );
+  }
+
+  const age = calcAgeFromDOB(player.dob, player.age);
+  const contract = player.contract || {};
+  const contractLeft = contractRemaining(contract.until);
+  const f = formSummary(player.form);
+  const fav = typeof isFavorite === 'function' ? isFavorite(player.id) : false;
+  const compared = comparisonIds.includes(player.id);
+
+  const inLists = (shortlists || []).filter((l) => shortlistEntries?.[l.id]?.[player.id]);
+  const isShortlisted = inLists.length > 0;
+
+  const injury = player.injury || { status: 'fit' };
+  const availability = injury.status === 'injured'
+    ? { label: `Injured • until ${formatISODate(injury.until)}`, status: 'danger', sub: injury.desc || 'Injury' }
+    : { label: 'Fit & available', status: 'success', sub: 'No reported injury' };
+
+  const metaChips = [
+    player.foot ? { icon: Info, label: `Foot: ${player.foot}` } : null,
+    player.personality ? { icon: Sparkles, label: player.personality } : null,
+    player.mediaHandling ? { icon: Eye, label: `Media: ${player.mediaHandling}` } : null,
+  ].filter(Boolean);
+
+  const a = player.attrs || {};
+
+  // --- Role Fit (computed) ---
+  const ipRole = getRoleById(ipRoleId);
+  const oopRole = getRoleById(oopRoleId);
+  const mix = roleMode === 'single'
+    ? { ip: 1, oop: 0 }
+    : { ip: clamp(ipShare, 0, 100) / 100, oop: (100 - clamp(ipShare, 0, 100)) / 100 };
+
+  const ipWeights = applyModifierPacks(ipRole?.ipWeights || {}, packsIP, 'ip');
+  const oopWeights = roleMode === 'pair' ? applyModifierPacks(oopRole?.oopWeights || {}, packsOOP, 'oop') : {};
+
+  const baseIpWeights = normalizeWeights(ipRole?.ipWeights || {});
+  const baseOopWeights = roleMode === 'pair' ? normalizeWeights(oopRole?.oopWeights || {}) : {};
+
+  const roleScore = calcRolePairScore({ attrs: a, ipWeights, oopWeights, mix });
+  const baseRoleScore = calcRolePairScore({ attrs: a, ipWeights: baseIpWeights, oopWeights: baseOopWeights, mix });
+  const roleScoreDelta = roleScore.total - baseRoleScore.total;
+
+  const toggleRolePack = (scope, pid) => {
+    if (scope === 'ip') setPacksIP((prev) => (prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]));
+    else setPacksOOP((prev) => (prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]));
+  };
+
+  const combinedWeights = (() => {
+    const keys = new Set([...Object.keys(ipWeights || {}), ...Object.keys(oopWeights || {})]);
+    const out = {};
+    keys.forEach((k) => {
+      const w = (ipWeights?.[k] || 0) * mix.ip + (oopWeights?.[k] || 0) * mix.oop;
+      if (w > 0) out[k] = w;
+    });
+    return out;
+  })();
+
+  const topContributors = (() => {
+    const rows = Object.entries(combinedWeights)
+      .map(([k, w]) => {
+        const val = Number(a?.[k]) || 0;
+        const points = (val / 20) * w * 100; // approx contribution to total points
+        return { key: k, label: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), val, w, points };
+      })
+      .sort((x, y) => y.points - x.points)
+      .slice(0, 5);
+    return rows;
+  })();
+
+  const biggestGaps = (() => {
+    const rows = Object.entries(combinedWeights)
+      .map(([k, w]) => {
+        const val = Number(a?.[k]) || 0;
+        const gap = ((20 - val) / 20) * w * 100; // approx potential points gain
+        return { key: k, label: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), val, w, gap };
+      })
+      .sort((x, y) => y.gap - x.gap)
+      .slice(0, 5);
+    return rows;
+  })();
+
+  const attributeGroups = buildAttributeGroupItems(a, { isGKContext: isGKPlayer });
+
+  const keyAttrs = Object.entries(a)
+    .map(([k, v]) => ({ key: k, name: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), value: v }))
+    .filter(x => typeof x.value === 'number')
+    .sort((x, y) => y.value - x.value)
+    .slice(0, 8);
+
+  const positionsList = parsePositionsLabel(player.positionsLabel, player.pos);
+  const activePosLabel = selectedPosition || positionsList?.[0] || player.pos;
+  const activeRoleGroup = guessRoleGroupFromPosition(activePosLabel);
+
+  const roleCandidates = FM26_ROLE_LIBRARY
+    .filter((r) => activeRoleGroup === 'ALL' ? true : r.positionGroup === activeRoleGroup);
+
+  const roleRecommendations = roleCandidates
+    .map((r) => {
+      const ipW = applyModifierPacks(r.ipWeights || {}, packsIP, 'ip');
+      const oopW = roleMode === 'pair'
+        ? applyModifierPacks(getRoleById(oopRoleId).oopWeights || {}, packsOOP, 'oop')
+        : {};
+      const s = calcRolePairScore({ attrs: a, ipWeights: ipW, oopWeights: oopW, mix });
+      const baseS = calcRolePairScore({ attrs: a, ipWeights: normalizeWeights(r.ipWeights || {}), oopWeights: roleMode === 'pair' ? normalizeWeights(getRoleById(oopRoleId).oopWeights || {}) : {}, mix });
+      return { role: r, score: s.total, ip: s.ip, oop: s.oop, deltaVsCurrent: s.total - roleScore.total, deltaVsBase: s.total - baseS.total };
+    })
+    .sort((x, y) => y.score - x.score)
+    .slice(0, 8);
+
+  const weakAttrs = Object.entries(a)
+    .map(([k, v]) => ({ key: k, name: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), value: v }))
+    .filter(x => typeof x.value === 'number')
+    .sort((x, y) => x.value - y.value)
+    .slice(0, 6);
+
+  const openShortlistModal = () => {
+    const defaultList = inLists?.[0]?.id || shortlists?.[0]?.id || 'fm-shortlist';
+    const existing = shortlistEntries?.[defaultList]?.[player.id];
+    setShortlistDraft({
+      listId: defaultList,
+      tag: existing?.tag || 'target',
+      note: existing?.note || '',
+    });
+    setShowShortlistModal(true);
+  };
+
+  const applyShortlist = () => {
+    const { listId, tag, note } = shortlistDraft;
+    if (!listId) return;
+    onAddToShortlist?.(player.id, listId, { tag, note });
+    toast('success', 'Shortlist updated', `${player.name} added to ${shortlists.find(l => l.id === listId)?.name || 'shortlist'}.`);
+    setShowShortlistModal(false);
+  };
+
+  const removeFromSelectedShortlist = () => {
+    const { listId } = shortlistDraft;
+    onRemoveFromShortlist?.(player.id, listId);
+    toast('warning', 'Removed from shortlist', `${player.name} removed.`);
+    setShowShortlistModal(false);
+  };
+
+  const toggleCompare = () => {
+    onToggleCompare?.(player.id);
+    toast('info', compared ? 'Removed from compare' : 'Added to compare', compared ? `${player.name} removed.` : `${player.name} added.`);
+  };
+
+  const createHistoryPoint = () => {
+    onCreateHistoryPoint?.(player.id, { label: historyLabel });
+    toast('success', 'History point created', `${player.name} • ${historyLabel}`);
+    setShowHistoryModal(false);
+  };
+
+  const toggleFav = () => {
+    onToggleFavorite?.(player.id);
+    toast('info', fav ? 'Removed from favourites' : 'Added to favourites', player.name);
+  };
+
+  const doCopy = async () => {
+    const ok = await copyToClipboard(`${player.name} (${player.id})`);
+    toast(ok ? 'success' : 'error', ok ? 'Copied' : 'Copy failed', ok ? 'Player name + ID copied.' : 'Clipboard unavailable.');
+  };
+
+  const tabs = [
+    { id: 'overview', icon: Users, label: 'Overview' },
+    { id: 'attributes', icon: BarChart3, label: 'Attributes' },
+    { id: 'positions', icon: MapPin, label: 'Positions' },
+    { id: 'transfer', icon: DollarSign, label: 'Transfer' },
+    { id: 'report', icon: FileText, label: 'Report' },
+    { id: 'development', icon: TrendingUp, label: 'Development', pro: true },
+  ];
+
+  const ShortlistModal = () => {
+    const activeEntry = shortlistEntries?.[shortlistDraft.listId]?.[player.id];
+    return (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
+        <div className="absolute inset-0 bg-black/50" onClick={() => setShowShortlistModal(false)} />
+        <div className={`relative w-full max-w-xl rounded-3xl border ${border} ${dark ? 'bg-slate-900' : 'bg-white'} shadow-2xl overflow-hidden`}>
+          <div className={`p-5 border-b ${border} flex items-center justify-between`}>
+            <div>
+              <div className={`text-sm font-semibold ${text}`}>Add to Shortlist</div>
+              <div className={`text-xs ${muted}`}>{player.name} • choose list + tag</div>
+            </div>
+            <Button variant="ghost" size="sm" dark={dark} icon={X} onClick={() => setShowShortlistModal(false)} />
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div>
+              <div className={`text-xs ${muted} mb-2`}>Shortlist</div>
+              <div className="grid grid-cols-2 gap-2">
+                {(shortlists || []).map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => setShortlistDraft((d) => ({ ...d, listId: l.id }))}
+                    className={`p-3 rounded-2xl border text-left transition-all ${shortlistDraft.listId === l.id ? 'border-blue-500/40 bg-blue-500/10' : border} ${dark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'}`}
+                  >
+                    <div className={`text-sm font-medium ${text}`}>{l.name}</div>
+                    <div className={`text-xs ${muted}`}>{Object.keys(shortlistEntries?.[l.id] || {}).length} players</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className={`text-xs ${muted} mb-2`}>Tag</div>
+                <select
+                  value={shortlistDraft.tag}
+                  onChange={(e) => setShortlistDraft((d) => ({ ...d, tag: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900'}`}
+                >
+                  <option value="target">Target</option>
+                  <option value="watchlist">Watchlist</option>
+                  <option value="loan">Loan</option>
+                  <option value="do_not_buy">Do Not Buy</option>
+                </select>
+              </div>
+              <div>
+                <div className={`text-xs ${muted} mb-2`}>Quick note</div>
+                <input
+                  value={shortlistDraft.note}
+                  onChange={(e) => setShortlistDraft((d) => ({ ...d, note: e.target.value }))}
+                  placeholder="e.g., Priority signing"
+                  className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-800 text-white placeholder:text-slate-500' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
+                />
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'} flex items-start gap-3`}>
+              <Info size={18} className="text-blue-500 mt-0.5" />
+              <div>
+                <div className={`text-sm font-medium ${text}`}>State-driven</div>
+                <div className={`text-xs ${muted}`}>This updates shared state. You’ll see it reflected in Shortlists and Search (shortlist-only).</div>
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-5 border-t ${border} flex items-center justify-between`}>
+            <div>
+              {activeEntry ? (
+                <button onClick={removeFromSelectedShortlist} className={`text-sm font-medium text-red-400 hover:text-red-300 flex items-center gap-2`}>
+                  <Trash2 size={16} /> Remove from this shortlist
+                </button>
+              ) : (
+                <div className={`text-xs ${muted}`}>Not in this shortlist yet</div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="md" dark={dark} onClick={() => setShowShortlistModal(false)}>Cancel</Button>
+              <Button variant="primary" size="md" icon={Check} onClick={applyShortlist}>Save</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const HistoryModal = () => (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-black/50" onClick={() => setShowHistoryModal(false)} />
+      <div className={`relative w-full max-w-lg rounded-3xl border ${border} ${dark ? 'bg-slate-900' : 'bg-white'} shadow-2xl overflow-hidden`}>
+        <div className={`p-5 border-b ${border} flex items-center justify-between`}>
+          <div>
+            <div className={`text-sm font-semibold ${text}`}>Create History Point</div>
+            <div className={`text-xs ${muted}`}>{player.name} • snapshot CA/PA + key attributes</div>
+          </div>
+          <Button variant="ghost" size="sm" dark={dark} icon={X} onClick={() => setShowHistoryModal(false)} />
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <div className={`text-xs ${muted} mb-2`}>Label</div>
+            <input
+              value={historyLabel}
+              onChange={(e) => setHistoryLabel(e.target.value)}
+              className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-800 text-white placeholder:text-slate-500' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
+              placeholder="e.g., Post-training camp"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+              <div className={`text-xs ${muted}`}>Date</div>
+              <div className={`text-sm font-semibold ${text}`}>{formatISODate(new Date().toISOString())}</div>
+            </div>
+            <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+              <div className={`text-xs ${muted}`}>CA</div>
+              <div className={`text-sm font-semibold text-emerald-400`}>{player.ca}</div>
+            </div>
+            <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+              <div className={`text-xs ${muted}`}>PA</div>
+              <div className={`text-sm font-semibold text-blue-400`}>{player.pa}</div>
+            </div>
+          </div>
+
+          <div className={`text-xs ${muted}`}>Includes top 6 attributes by current value (prototype).</div>
+        </div>
+
+        <div className={`p-5 border-t ${border} flex justify-end gap-2`}>
+          <Button variant="secondary" size="md" dark={dark} onClick={() => setShowHistoryModal(false)}>Cancel</Button>
+          <Button variant="primary" size="md" icon={Plus} onClick={createHistoryPoint}>Create</Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const HeaderMeta = () => (
+    <div className={`flex items-center gap-3 ${muted} text-sm mb-4 flex-wrap`}>
+      <span>{age} years old</span>
+      <span className="w-1 h-1 rounded-full bg-current" />
+      <span>{player.positionsLabel || player.pos}</span>
+      <span className="w-1 h-1 rounded-full bg-current" />
+      <span className={`font-medium ${text}`}>{player.club}</span>
+      <span className="w-1 h-1 rounded-full bg-current" />
+      <span title={`Last updated: ${formatISODate(player.lastUpdated)}`}>Updated {formatTimeAgo(player.lastUpdated)}</span>
+    </div>
+  );
+
+  return (
+    <div className={`w-full h-full ${surface} flex flex-col`}>
+      {/* Hero / header */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-purple-600/10 to-transparent" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="relative p-6">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className={`absolute top-4 left-4 w-8 h-8 rounded-xl ${dark ? 'bg-slate-700/50' : 'bg-white/50'} flex items-center justify-center hover:opacity-90`}
+              aria-label="Back to search"
+              title="Back"
+            >
+              <ChevronLeft size={18} className={muted} />
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            className={`absolute top-4 right-4 w-8 h-8 rounded-xl ${dark ? 'bg-slate-700/50' : 'bg-white/50'} flex items-center justify-center hover:opacity-90`}
+            aria-label="Close profile"
+            title="Close"
+          >
+            <X size={18} className={muted} />
+          </button>
+
+          <div className="flex gap-5">
+            <div className={`w-28 h-28 rounded-2xl ${dark ? 'bg-slate-700' : 'bg-slate-200'} flex items-center justify-center border-2 ${border}`}>
+              <Users size={48} className={muted} />
+            </div>
+
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <h1 className={`text-2xl font-bold ${text}`}>{player.name}</h1>
+                {player.nation && <span className="text-2xl">{player.nation}</span>}
+
+                <button
+                  onClick={toggleFav}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white/60 hover:bg-white'} transition-all`}
+                  title={fav ? 'Remove from favourites' : 'Add to favourites'}
+                >
+                  <Star size={14} className={fav ? 'text-amber-500' : muted} fill={fav ? 'currentColor' : 'none'} />
+                  <span className={`text-xs ${fav ? 'text-amber-400' : muted}`}>{fav ? 'Favourite' : 'Star'}</span>
+                </button>
+
+                <button
+                  onClick={doCopy}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white/60 hover:bg-white'} transition-all`}
+                  title="Copy name + ID"
+                >
+                  <Copy size={14} className={muted} />
+                  <span className={`text-xs ${muted}`}>Copy</span>
+                </button>
+
+                {isShortlisted && <Badge variant="primary" size="sm">Shortlisted</Badge>}
+                {compared && <Badge variant="success" size="sm">In Compare</Badge>}
+              </div>
+
+              <HeaderMeta />
+
+              <div className="flex gap-6">
+                <div className="flex-1">
+                  <div className={`text-xs ${muted} mb-1.5`}>Current Ability</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1"><ProgressBar value={player.ca} max={200} variant="success" size="lg" /></div>
+                    <span className="text-xl font-bold text-emerald-400">{player.ca}</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className={`text-xs ${muted} mb-1.5`}>Potential Ability</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1"><ProgressBar value={player.pa} max={200} variant="primary" size="lg" /></div>
+                    <span className="text-xl font-bold text-blue-400">{player.pa}</span>
+                  </div>
+                </div>
+              </div>
+
+              {metaChips.length > 0 && (
+                <div className="flex gap-2 mt-4 flex-wrap">
+                  {metaChips.map((c, i) => (
+                    <span key={i} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white/60'} text-xs`}>
+                      <c.icon size={14} className="text-blue-500" />
+                      <span className={muted}>{c.label}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 mt-5 flex-wrap">
+            <Button
+              variant={isShortlisted ? 'secondary' : 'primary'}
+              size="md"
+              icon={isShortlisted ? CheckSquare : Plus}
+              dark={dark}
+              onClick={openShortlistModal}
+              title="Add to shortlist"
+            >
+              {isShortlisted ? 'Edit Shortlist' : 'Add to Shortlist'}
+            </Button>
+
+            <Button
+              variant={compared ? 'success' : 'secondary'}
+              size="md"
+              icon={GitCompare}
+              dark={dark}
+              onClick={toggleCompare}
+              title="Toggle compare"
+            >
+              {compared ? 'In Compare' : 'Compare'}
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="md"
+              icon={History}
+              dark={dark}
+              onClick={() => setShowHistoryModal(true)}
+              title="Create history snapshot"
+            >
+              Track History
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className={`flex border-b ${border} px-6 ${dark ? 'bg-slate-800/30' : 'bg-slate-50/50'} overflow-auto`}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium relative whitespace-nowrap ${activeTab === tab.id ? text : muted}`}
+            title={tab.pro ? 'PRO tab (prototype)' : tab.label}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+            {tab.pro && <Crown size={12} className="text-amber-500" />}
+            {activeTab === tab.id && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-blue-500 rounded-full" />}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-6">
+        {activeTab === 'overview' && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-4 gap-4">
+              <Card dark={dark} className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className={`text-xs ${muted}`}>Value</div>
+                  <DollarSign size={16} className="text-blue-500" />
+                </div>
+                <div className={`text-lg font-bold ${text}`}>{player.value || '—'}</div>
+                <div className={`text-xs ${muted}`}>Wage: {contract.wage || '—'}</div>
+              </Card>
+
+              <Card dark={dark} className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className={`text-xs ${muted}`}>Contract</div>
+                  <Clock size={16} className="text-blue-500" />
+                </div>
+                <div className={`text-lg font-bold ${contractLeft.status === 'danger' ? 'text-red-400' : contractLeft.status === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {contractLeft.label}
+                </div>
+                <div className={`text-xs ${muted}`} title={`Until ${formatISODate(contract.until)}`}>Until {formatISODate(contract.until)}</div>
+              </Card>
+
+              <Card dark={dark} className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className={`text-xs ${muted}`}>Availability</div>
+                  <Activity size={16} className="text-blue-500" />
+                </div>
+                <div className={`text-sm font-semibold ${availability.status === 'danger' ? 'text-red-400' : 'text-emerald-400'}`}>{availability.label}</div>
+                <div className={`text-xs ${muted}`}>{availability.sub}</div>
+              </Card>
+
+              <Card dark={dark} className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className={`text-xs ${muted}`}>Form</div>
+                  <TrendingUp size={16} className="text-blue-500" />
+                </div>
+                <div className={`text-lg font-bold ${text}`}>{f.avg ? f.avg.toFixed(2) : '—'}</div>
+                <div className={`text-xs ${muted}`}>
+                  Trend: <span className={f.delta > 0 ? 'text-emerald-400' : f.delta < 0 ? 'text-red-400' : muted}>{f.delta ? (f.delta > 0 ? `+${f.delta.toFixed(2)}` : f.delta.toFixed(2)) : '0.00'}</span>
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-2 gap-5">
+              <Card dark={dark} className="p-5">
+  <div className="flex items-start justify-between mb-4 gap-3">
+    <div className="min-w-0">
+      <h3 className={`font-semibold ${text}`}>Role Fit</h3>
+      <div className={`text-xs ${muted} mt-1 truncate`}>
+        {ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''} • {roleMode === 'single' ? 'IP only' : `${ipShare}% IP / ${100 - ipShare}% OOP`}
+      </div>
+    </div>
+    <div className="flex items-center gap-2">
+      <Badge variant="primary" size="sm">Total {roleScore.total}</Badge>
+      <Badge variant={roleScoreDelta >= 0 ? 'success' : 'danger'} size="sm">
+        {roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta} vs base
+      </Badge>
+    </div>
+  </div>
+
+  <div className={`grid ${roleMode === 'pair' ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+    <div className="space-y-3">
+      <RolePairSelector
+        dark={dark}
+        compact
+        mode={roleMode}
+        ipRoleId={ipRoleId}
+        oopRoleId={oopRoleId}
+        onModeChange={setRoleMode}
+        onChange={({ ipRoleId: ip, oopRoleId: oop }) => {
+          setIpRoleId(ip);
+          if (oop) setOopRoleId(oop);
+        }}
+      />
+
+      <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className={`text-xs ${muted}`}>IP / OOP mix</div>
+          <div className={`text-xs ${muted}`}>{roleMode === 'single' ? '100 / 0' : `${ipShare} / ${100 - ipShare}`}</div>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={roleMode === 'single' ? 100 : ipShare}
+          onChange={(e) => setIpShare(Number(e.target.value))}
+          disabled={roleMode === 'single'}
+          className="w-full"
+        />
+      </div>
+
+      <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className={`text-xs ${muted}`}>Scores</div>
+          <div className={`text-xs ${muted}`}>Live</div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 text-xs ${muted}`}>IP</div>
+            <div className="flex-1"><ProgressBar value={roleScore.ip} max={100} variant="primary" size="sm" /></div>
+            <div className={`w-10 text-right text-xs ${text}`}>{roleScore.ip}</div>
+          </div>
+          {roleMode === 'pair' && (
+            <div className="flex items-center gap-3">
+              <div className={`w-10 text-xs ${muted}`}>OOP</div>
+              <div className="flex-1"><ProgressBar value={roleScore.oop} max={100} variant="warning" size="sm" /></div>
+              <div className={`w-10 text-right text-xs ${text}`}>{roleScore.oop}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <div className="space-y-3">
+      <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+        <div className={`text-xs ${muted} mb-2`}>Modifier Packs</div>
+        <div className="flex flex-wrap gap-2">
+          {FM26_MODIFIER_PACKS.filter(p => p.scope === 'both' || p.scope === 'ip').map((p) => {
+            const active = packsIP.includes(p.id);
+            return (
+              <button
+                key={`ip-${p.id}`}
+                onClick={() => toggleRolePack('ip', p.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
+                  active ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
+                }`}
+                title="Applies to IP phase"
+              >
+                {p.name} <span className={muted}>IP</span>
+              </button>
+            );
+          })}
+          {roleMode === 'pair' && FM26_MODIFIER_PACKS.filter(p => p.scope === 'both' || p.scope === 'oop').map((p) => {
+            const active = packsOOP.includes(p.id);
+            return (
+              <button
+                key={`oop-${p.id}`}
+                onClick={() => toggleRolePack('oop', p.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
+                  active ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
+                }`}
+                title="Applies to OOP phase"
+              >
+                {p.name} <span className={muted}>OOP</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+          <div className={`text-xs ${muted} mb-2`}>Top contributors</div>
+          <div className="space-y-2">
+            {topContributors.map((r) => (
+              <div key={r.key} className="flex items-center gap-2">
+                <div className={`text-xs ${muted} flex-1 truncate`}>{r.label}</div>
+                <div className={`text-xs ${text}`}>{r.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+          <div className={`text-xs ${muted} mb-2`}>Biggest gaps</div>
+          <div className="space-y-2">
+            {biggestGaps.map((r) => (
+              <div key={r.key} className="flex items-center gap-2">
+                <div className={`text-xs ${muted} flex-1 truncate`}>{r.label}</div>
+                <div className={`text-xs ${text}`}>{r.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          dark={dark}
+          icon={RotateCcw}
+          onClick={() => {
+            const ids = guessRoleIdsFromPos(player.pos);
+            setRoleMode('pair');
+            setIpRoleId(ids.ip);
+            setOopRoleId(ids.oop);
+            setIpShare(70);
+            setPacksIP([]);
+            setPacksOOP([]);
+            toast('info', 'Role Fit reset', 'Reset to default role + no packs.');
+          }}
+        >
+          Reset
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          dark={dark}
+          icon={Copy}
+          onClick={async () => {
+            const payload = { mode: roleMode, ipRoleId, oopRoleId, ipShare, packsIP, packsOOP };
+            const ok = await copyToClipboard(JSON.stringify(payload, null, 2));
+            toast(ok ? 'success' : 'error', ok ? 'Copied' : 'Copy failed', ok ? 'Role Fit config copied as JSON.' : 'Clipboard unavailable.');
+          }}
+        >
+          Copy config
+        </Button>
+      </div>
+    </div>
+  </div>
+</Card>
+
+              <Card dark={dark} className="p-5">
+                <h3 className={`font-semibold ${text} mb-4`}>Key Attributes</h3>
+                <div className="space-y-3">
+                  {keyAttrs.slice(0, 6).map((attr) => (
+                    <div key={attr.key} className="flex items-center gap-3">
+                      <span className={`text-sm ${muted} flex-1`}>{attr.name}</span>
+                      <div className="w-24"><ProgressBar value={attr.value} max={20} variant={attr.value >= 17 ? 'success' : 'warning'} size="sm" /></div>
+                      <AttributeValue value={attr.value} size="sm" />
+                    </div>
+                  ))}
+                </div>
+                <div className={`mt-4 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-center justify-between`}>
+                  <div className={`text-xs ${muted}`}>DOB</div>
+                  <div className={`text-xs ${text}`}>{formatISODate(player.dob)}</div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        
+{activeTab === 'attributes' && (
+  <div className="space-y-5">
+    <Card dark={dark} className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className={`font-semibold ${text}`}>Attribute groups</h3>
+          <div className={`text-xs ${muted} mt-1`}>
+            Defaults depend on position type (GK vs outfield). Goalkeeping can be toggled for any player.
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            dark={dark}
+            icon={GKIcon}
+            onClick={() => {
+              // Ensure visible + expanded then scroll
+              setVisibleAttrGroups((prev) => {
+                const has = (prev || []).includes('Goalkeeping');
+                const next = has ? (prev || []) : [...(prev || []), 'Goalkeeping'];
+                return ATTRIBUTE_GROUP_ORDER.filter((g) => next.includes(g));
+              });
+              setCollapsedAttrGroups((prev) => ({ ...(prev || {}), Goalkeeping: false }));
+              setTimeout(() => {
+                const el = attrGroupRefs.current?.Goalkeeping;
+                if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 0);
+            }}
+            title="Jump to Goalkeeping"
+          >
+            Goalkeeping
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            dark={dark}
+            icon={ChevronUp}
+            onClick={() => {
+              const next = {};
+              (visibleAttrGroups || []).forEach((g) => { next[g] = true; });
+              setCollapsedAttrGroups(next);
+            }}
+            title="Collapse all"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            dark={dark}
+            icon={ChevronDown}
+            onClick={() => {
+              const next = {};
+              (visibleAttrGroups || []).forEach((g) => { next[g] = false; });
+              setCollapsedAttrGroups(next);
+            }}
+            title="Expand all"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mt-4">
+        {ATTRIBUTE_GROUP_ORDER.map((g) => {
+          const on = (visibleAttrGroups || []).includes(g);
+          const isDefault = (defaultAttrGroups || []).includes(g);
+          const count = (attributeGroups?.[g] || []).length;
+
+          return (
+            <button
+              key={g}
+              onClick={() => {
+                const currentlyOn = (visibleAttrGroups || []).includes(g);
+
+                setVisibleAttrGroups((prev) => {
+                  const has = (prev || []).includes(g);
+                  const next = has ? (prev || []).filter((x) => x !== g) : [...(prev || []), g];
+                  return ATTRIBUTE_GROUP_ORDER.filter((x) => next.includes(x));
+                });
+
+                setCollapsedAttrGroups((prev) => {
+                  if (!currentlyOn && !(defaultAttrGroups || []).includes(g)) {
+                    // Optional groups start collapsed to reduce vertical scroll
+                    return { ...(prev || {}), [g]: true };
+                  }
+                  if (currentlyOn) {
+                    const next = { ...(prev || {}) };
+                    delete next[g];
+                    return next;
+                  }
+                  return prev || {};
+                });
+              }}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                on
+                  ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                  : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'} ${border}`
+              }`}
+              title={isDefault ? 'Default group' : 'Optional group'}
+            >
+              {g === 'Goalkeeping' ? <GKIcon size={14} className={on ? 'border-blue-500/40' : ''} /> : null}
+              <span>{g}</span>
+              <Badge variant={on ? 'primary' : 'default'} size="xs" dark={dark}>{count}</Badge>
+              {isDefault ? <span className={`${muted} text-[10px]`}>• default</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+
+<div className="grid grid-cols-3 gap-5">
+  {(() => {
+    const columns = buildFm26AttributeColumns(isGKPlayer, visibleAttrGroups || []);
+
+    return columns.map((col, colIdx) => (
+      <div key={`attr_col_${colIdx}`} className="space-y-5">
+        {col.map((groupName) => {
+          const items = attributeGroups?.[groupName] || [];
+          const collapsed = !!collapsedAttrGroups?.[groupName];
+
+          return (
+            <div key={groupName} ref={(el) => { if (el) attrGroupRefs.current[groupName] = el; }}>
+              <Card dark={dark} className="p-5">
+                <button
+                  onClick={() => setCollapsedAttrGroups((prev) => ({ ...(prev || {}), [groupName]: !prev?.[groupName] }))}
+                  className="w-full flex items-center justify-between mb-4 text-left"
+                  title={collapsed ? 'Expand group' : 'Collapse group'}
+                >
+                  <div className="flex items-center gap-2">
+                    {groupName === 'Goalkeeping' ? <GKIcon size={16} /> : null}
+                    <h3 className={`font-semibold ${text}`}>{groupName}</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" dark={dark} size="xs">{items.length} attrs</Badge>
+                    {collapsed ? <ChevronDown size={16} className={muted} /> : <ChevronUp size={16} className={muted} />}
+                  </div>
+                </button>
+
+                {!collapsed && (
+                  <div className="space-y-2">
+                    {items.map(({ label, value, key }) => (
+                      <div key={key} className={`flex items-center justify-between p-2 rounded-xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} ${hover}`}>
+                        <span className={`text-sm ${muted}`} title={label}>{label}</span>
+                        <AttributeValue value={value} size="sm" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          );
+        })}
+      </div>
+    ));
+  })()}
+</div>
+  </div>
+)}
+
+        {activeTab === 'positions' && (
+          <div className="grid grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 col-span-2">
+              <div className="flex items-start justify-between mb-4 gap-3">
+                <div>
+                  <h3 className={`font-semibold ${text}`}>Positions & Role Fit</h3>
+                  <div className={`text-xs ${muted} mt-1`}>Select a position to filter role suggestions. Apply a role to update the Role Fit panel.</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default" size="sm" dark={dark}>{activeRoleGroup}</Badge>
+                  <Badge variant="primary" size="sm">Current {roleScore.total}</Badge>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {positionsList.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setSelectedPosition(p)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
+                      (selectedPosition || activePosLabel) === p
+                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                        : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} mb-4`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className={`text-xs ${muted}`}>Selected position</div>
+                    <div className={`text-sm font-semibold ${text}`}>{activePosLabel}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-xs ${muted}`}>Role Fit</div>
+                    <div className={`text-sm font-semibold ${text}`}>{roleMode === 'pair' ? `${roleScore.ip} / ${roleScore.oop}` : `${roleScore.ip} IP`}</div>
+                  </div>
+                </div>
+              </div>
+
+              <h4 className={`text-sm font-semibold ${text} mb-3`}>Role recommendations (by current packs + mix)</h4>
+              <div className="space-y-2">
+                {roleRecommendations.length === 0 ? (
+                  <div className={`text-sm ${muted}`}>No roles mapped for this position group yet (prototype subset).</div>
+                ) : roleRecommendations.map((r) => (
+                  <div key={r.role.id} className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} flex items-center gap-3`}>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-medium ${text} truncate`}>{r.role.name}</div>
+                      <div className={`text-xs ${muted} mt-0.5`}>Score {r.score} • Δ current {r.deltaVsCurrent >= 0 ? `+${r.deltaVsCurrent}` : r.deltaVsCurrent} • Δ base {r.deltaVsBase >= 0 ? `+${r.deltaVsBase}` : r.deltaVsBase}</div>
+                      <div className="mt-2"><ProgressBar value={r.score} max={100} variant="primary" size="sm" /></div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        dark={dark}
+                        onClick={() => {
+                          setIpRoleId(r.role.id);
+                          toast('success', 'IP role set', `${r.role.name} applied as IP role.`);
+                        }}
+                      >
+                        Set IP
+                      </Button>
+
+                      {roleMode === 'pair' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          dark={dark}
+                          onClick={() => {
+                            setIpRoleId(r.role.id);
+                            setOopRoleId(r.role.id);
+                            toast('success', 'Role pair set', `${r.role.name} applied to IP + OOP (prototype).`);
+                          }}
+                        >
+                          Set Pair
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-start gap-3`}>
+                <Info size={16} className="text-blue-500 mt-0.5" />
+                <div>
+                  <div className={`text-sm font-semibold ${text}`}>How this works</div>
+                  <div className={`text-xs ${muted} mt-1`}>Scores are computed from the FM26 Role weights + your Modifier Packs. This is the same engine used by Search “Role Fit”.</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card dark={dark} className="p-5">
+              <h3 className={`font-semibold ${text} mb-4`}>Quick actions</h3>
+              <div className="space-y-2">
+                <button onClick={openShortlistModal} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
+                  <Plus size={16} className="text-blue-500" />
+                  <span className={`text-sm font-medium ${text}`}>{isShortlisted ? 'Edit shortlist' : 'Add to shortlist'}</span>
+                </button>
+                <button onClick={toggleCompare} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
+                  <GitCompare size={16} className="text-blue-500" />
+                  <span className={`text-sm font-medium ${text}`}>{compared ? 'Remove from compare' : 'Add to compare'}</span>
+                </button>
+                <button onClick={() => setShowHistoryModal(true)} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
+                  <History size={16} className="text-blue-500" />
+                  <span className={`text-sm font-medium ${text}`}>Create history point</span>
+                </button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+
+        {activeTab === 'transfer' && (
+          <div className="grid grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 col-span-2">
+              <h3 className={`font-semibold ${text} mb-4`}>Deal Snapshot</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Market value', value: player.value || '—' },
+                  { label: 'Wage', value: contract.wage || '—' },
+                  { label: 'Contract until', value: formatISODate(contract.until) },
+                ].map((x) => (
+                  <div key={x.label} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                    <div className={`text-xs ${muted}`}>{x.label}</div>
+                    <div className={`text-sm font-semibold ${text}`}>{x.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-amber-500/5' : 'bg-amber-50'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Info size={16} className="text-amber-500" />
+                  <div className={`text-sm font-semibold ${text}`}>Next phases</div>
+                </div>
+                <div className={`text-xs ${muted}`}>This tab will later include clause radar, fee estimation, and deal intelligence widgets (g edition).</div>
+              </div>
+            </Card>
+
+            <Card dark={dark} className="p-5">
+              <h3 className={`font-semibold ${text} mb-4`}>Availability</h3>
+
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-sm font-semibold ${availability.status === 'danger' ? 'text-red-400' : 'text-emerald-400'}`}>{availability.label}</div>
+                <div className={`text-xs ${muted} mt-1`}>{availability.sub}</div>
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} mt-4`}>
+                <div className={`text-xs ${muted}`}>Contract urgency</div>
+                <div className={`text-sm font-semibold ${contractLeft.status === 'danger' ? 'text-red-400' : contractLeft.status === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>{contractLeft.label}</div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'report' && (
+          <div className="grid grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 col-span-2">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className={`font-semibold ${text}`}>Scout Report</h3>
+                  <div className={`text-xs ${muted} mt-1`}>Structured report builder (state-driven). Save persists per player within the prototype session.</div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    dark={dark}
+                    icon={Sparkles}
+                    onClick={() => {
+                      const strengths = keyAttrs.slice(0, 3).map(x => x.name);
+                      const weaknesses = weakAttrs.slice(0, 2).map(x => x.name);
+                      const fitLine = `Role Fit: ${ipRole?.name}${roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''} — ${roleScore.total} (${roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta} vs base)`;
+
+                      setReportDraft((d) => {
+                        const nextPros = (d.pros?.length ? d.pros : strengths.map(s => `Strength: ${s}`));
+                        const nextCons = (d.cons?.length ? d.cons : weaknesses.map(w => `Improve: ${w}`));
+                        const note = `Summary\n- ${fitLine}\n- Availability: ${availability.label}\n\nStrengths\n- ${strengths.join('\n- ') || '—'}\n\nRisks / Questions\n- ${injury.status === 'injured' ? (injury.desc || 'Injury') : (weaknesses.join(', ') || 'No major flags')}\n\nRecommendation\n- ${String(d.recommendation || 'shortlist').toUpperCase()} (${d.confidence}%)`;
+                        return { ...d, note: d.note?.trim() ? d.note : note, pros: nextPros, cons: nextCons };
+                      });
+
+                      toast('success', 'Generated', 'Draft filled with derived insights.');
+                    }}
+                  >
+                    Generate
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    dark={dark}
+                    icon={Copy}
+                    onClick={async () => {
+                      const md = [
+                        `# ${player.name} — Scout Report`,
+                        ``,
+                        `**Recommendation:** ${String(reportDraft.recommendation || '').toUpperCase()} • **Confidence:** ${reportDraft.confidence}% • **Rating:** ${reportDraft.ratingStars}/5`,
+                        ``,
+                        `**Role Fit:** ${ipRole?.name}${roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''} — ${roleScore.total} (${roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta} vs base)`,
+                        `**Availability:** ${availability.label}`,
+                        `**Contract:** until ${formatISODate(contract.until)} (${contractLeft.label})`,
+                        ``,
+                        reportDraft.tags?.length ? `**Tags:** ${reportDraft.tags.join(', ')}` : '',
+                        ``,
+                        reportDraft.pros?.length ? `## Pros\n${reportDraft.pros.map(p => `- ${p}`).join('\n')}` : '',
+                        ``,
+                        reportDraft.cons?.length ? `## Cons\n${reportDraft.cons.map(c => `- ${c}`).join('\n')}` : '',
+                        ``,
+                        reportDraft.note?.trim() ? `## Notes\n${reportDraft.note.trim()}` : '',
+                      ].filter(Boolean).join('\n');
+                      const ok = await copyToClipboard(md);
+                      toast(ok ? 'success' : 'error', ok ? 'Copied' : 'Copy failed', ok ? 'Report copied as Markdown.' : 'Clipboard unavailable.');
+                    }}
+                  >
+                    Copy
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={Save}
+                    onClick={() => {
+                      const hadSaved = !!reportDraft.updatedAt;
+                      const updatedAt = new Date().toISOString();
+                      const payload = { ...reportDraft, updatedAt };
+                      onSavePlayerReport?.(player.id, payload);
+                      setReportDraft((d) => ({ ...d, updatedAt }));
+                      toast('success', 'Report saved', hadSaved ? 'Updated existing report.' : 'Created new report.');
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className={`text-xs ${muted} mb-2`}>Recommendation</div>
+                  <select
+                    value={reportDraft.recommendation}
+                    onChange={(e) => setReportDraft((d) => ({ ...d, recommendation: e.target.value }))}
+                    className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900 text-slate-200' : 'bg-white text-slate-700'}`}
+                  >
+                    <option value="sign">Sign</option>
+                    <option value="shortlist">Shortlist</option>
+                    <option value="monitor">Monitor</option>
+                    <option value="avoid">Avoid</option>
+                  </select>
+
+                  <div className={`text-xs ${muted} mt-3`}>Last saved</div>
+                  <div className={`text-sm font-semibold ${text}`}>{reportDraft.updatedAt ? formatTimeAgo(reportDraft.updatedAt) : '—'}</div>
+                </div>
+
+                <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-xs ${muted}`}>Confidence</div>
+                    <div className={`text-xs ${text}`}>{reportDraft.confidence}%</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={reportDraft.confidence}
+                    onChange={(e) => setReportDraft((d) => ({ ...d, confidence: Number(e.target.value) }))}
+                    className="w-full"
+                  />
+                  <div className={`text-xs ${muted} mt-2`}>Higher confidence boosts shortlist priority (later).</div>
+                </div>
+
+                <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className={`text-xs ${muted} mb-2`}>Overall rating</div>
+                  <div className="flex items-center gap-1.5">
+                    {[1,2,3,4,5].map((i) => (
+                      <button
+                        key={i}
+                        onClick={() => setReportDraft((d) => ({ ...d, ratingStars: i }))}
+                        className="p-1 rounded-lg hover:bg-slate-700/30"
+                        title={`${i} / 5`}
+                      >
+                        <Star size={16} className={i <= (reportDraft.ratingStars || 0) ? 'text-amber-500' : muted} />
+                      </button>
+                    ))}
+                    <span className={`text-xs ${muted} ml-2`}>{reportDraft.ratingStars}/5</span>
+                  </div>
+
+                  <div className={`mt-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-950/30' : 'bg-slate-50'}`}>
+                    <div className={`text-xs ${muted}`}>Role Fit</div>
+                    <div className={`text-sm font-semibold ${text}`}>{roleScore.total} <span className={muted}>({roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta})</span></div>
+                    <div className={`text-xs ${muted} mt-1 truncate`}>{ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`text-xs ${muted}`}>Tags</div>
+                  <div className={`text-xs ${muted}`}>click to toggle</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {['Starter-ready', 'High ceiling', 'Value', 'Homegrown', 'Injury risk', 'Tactical fit'].map((t) => {
+                    const active = (reportDraft.tags || []).includes(t);
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setReportDraft((d) => {
+                          const tags = Array.isArray(d.tags) ? d.tags : [];
+                          return { ...d, tags: active ? tags.filter(x => x !== t) : [...tags, t] };
+                        })}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${
+                          active ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`text-sm font-semibold ${text}`}>Pros</div>
+                    <Badge variant="success" size="xs">{(reportDraft.pros || []).length}</Badge>
+                  </div>
+
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      value={reportProInput}
+                      onChange={(e) => setReportProInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = reportProInput.trim();
+                          if (!v) return;
+                          setReportDraft((d) => ({ ...d, pros: [...(d.pros || []), v] }));
+                          setReportProInput('');
+                        }
+                      }}
+                      placeholder="Add a pro… (Enter)"
+                      className={`flex-1 px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900/20 text-white placeholder:text-slate-500' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      dark={dark}
+                      icon={Plus}
+                      onClick={() => {
+                        const v = reportProInput.trim();
+                        if (!v) return;
+                        setReportDraft((d) => ({ ...d, pros: [...(d.pros || []), v] }));
+                        setReportProInput('');
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(reportDraft.pros || []).length === 0 ? (
+                      <div className={`text-xs ${muted}`}>No pros yet. Use Generate or add manually.</div>
+                    ) : (reportDraft.pros || []).map((p, idx) => (
+                      <div key={`${p}-${idx}`} className={`flex items-center gap-2 p-2 rounded-xl border ${border} ${dark ? 'bg-slate-950/20' : 'bg-slate-50'}`}>
+                        <CheckCircle2 size={16} className="text-emerald-400" />
+                        <div className={`text-sm ${text} flex-1`}>{p}</div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          dark={dark}
+                          icon={X}
+                          onClick={() => setReportDraft((d) => ({ ...d, pros: (d.pros || []).filter((_, i) => i !== idx) }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`text-sm font-semibold ${text}`}>Cons / Risks</div>
+                    <Badge variant="warning" size="xs">{(reportDraft.cons || []).length}</Badge>
+                  </div>
+
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      value={reportConInput}
+                      onChange={(e) => setReportConInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = reportConInput.trim();
+                          if (!v) return;
+                          setReportDraft((d) => ({ ...d, cons: [...(d.cons || []), v] }));
+                          setReportConInput('');
+                        }
+                      }}
+                      placeholder="Add a con… (Enter)"
+                      className={`flex-1 px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900/20 text-white placeholder:text-slate-500' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      dark={dark}
+                      icon={Plus}
+                      onClick={() => {
+                        const v = reportConInput.trim();
+                        if (!v) return;
+                        setReportDraft((d) => ({ ...d, cons: [...(d.cons || []), v] }));
+                        setReportConInput('');
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(reportDraft.cons || []).length === 0 ? (
+                      <div className={`text-xs ${muted}`}>No risks yet. Use Generate or add manually.</div>
+                    ) : (reportDraft.cons || []).map((c, idx) => (
+                      <div key={`${c}-${idx}`} className={`flex items-center gap-2 p-2 rounded-xl border ${border} ${dark ? 'bg-slate-950/20' : 'bg-slate-50'}`}>
+                        <AlertCircle size={16} className="text-amber-400" />
+                        <div className={`text-sm ${text} flex-1`}>{c}</div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          dark={dark}
+                          icon={X}
+                          onClick={() => setReportDraft((d) => ({ ...d, cons: (d.cons || []).filter((_, i) => i !== idx) }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`text-sm font-semibold ${text}`}>Notes</div>
+                  <div className={`text-xs ${muted}`}>Free-form (included in exports)</div>
+                </div>
+                <textarea
+                  value={reportDraft.note}
+                  onChange={(e) => setReportDraft((d) => ({ ...d, note: e.target.value }))}
+                  placeholder="Write notes for this player…"
+                  className={`w-full min-h-[180px] px-4 py-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20 text-white placeholder:text-slate-500' : 'bg-white text-slate-900 placeholder:text-slate-400'}`}
+                />
+              </div>
+            </Card>
+
+            <Card dark={dark} className="p-5">
+              <h3 className={`font-semibold ${text} mb-4`}>Quick Summary</h3>
+
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-xs ${muted}`}>Strengths (auto)</div>
+                <div className={`text-sm ${text} mt-1`}>{keyAttrs.slice(0, 4).map(x => x.name).join(', ') || '—'}</div>
+                <div className={`text-xs ${muted} mt-2`}>Weaknesses (auto)</div>
+                <div className={`text-sm ${text} mt-1`}>{weakAttrs.slice(0, 3).map(x => x.name).join(', ') || '—'}</div>
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} mt-4`}>
+                <div className={`text-xs ${muted}`}>Tactical fit</div>
+                <div className="flex items-center justify-between mt-1">
+                  <div className={`text-sm font-semibold ${text}`}>{roleScore.total}</div>
+                  <Badge variant={roleScoreDelta >= 0 ? 'success' : 'danger'} size="xs">{roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta}</Badge>
+                </div>
+                <div className={`text-xs ${muted} mt-1 truncate`}>{ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''}</div>
+              </div>
+
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} mt-4`}>
+                <div className={`text-xs ${muted}`}>Risks</div>
+                <div className={`text-sm ${text} mt-1`}>
+                  {injury.status === 'injured' ? (injury.desc || 'Injury') : (contractLeft.status === 'warning' ? 'Contract nearing end' : 'No major flags')}
+                </div>
+                <div className={`text-xs ${muted} mt-1`}>{availability.label}</div>
+              </div>
+
+              <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-start gap-3`}>
+                <Info size={16} className="text-blue-500 mt-0.5" />
+                <div>
+                  <div className={`text-sm font-semibold ${text}`}>Next step</div>
+                  <div className={`text-xs ${muted} mt-1`}>Later we’ll connect this to “Pro Reports (g)” exports and add attachments + versioning.</div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+
+        {activeTab === 'development' && (
+          <div className="grid grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 col-span-2 border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
+              <div className="flex items-center gap-2 mb-4">
+                <Crown size={16} className="text-amber-500" />
+                <h3 className={`font-semibold ${text}`}>Development Forecast</h3>
+                <Badge variant="gold" size="xs">PRO</Badge>
+              </div>
+              <div className={`text-sm ${muted}`}>The full development model is coming later. This panel will eventually show growth curves, training impact and scenario planning.</div>
+
+              <div className="grid grid-cols-3 gap-4 mt-5">
+                {[
+                  { label: 'Peak age', value: '27 (est.)' },
+                  { label: 'Progress rate', value: 'Fast (est.)' },
+                  { label: 'Risk', value: injury.status === 'injured' ? 'Medium' : 'Low' },
+                ].map((x) => (
+                  <div key={x.label} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+                    <div className={`text-xs ${muted}`}>{x.label}</div>
+                    <div className={`text-sm font-semibold ${text}`}>{x.value}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card dark={dark} className="p-5">
+              <h3 className={`font-semibold ${text} mb-4`}>Upgrade</h3>
+              <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-sm font-semibold ${text}`}>g Edition required</div>
+                <div className={`text-xs ${muted} mt-1`}>Unlock forecasts, cohort comps, and plan exports.</div>
+                <Button variant="gold" size="md" icon={Crown} className="w-full mt-4">Upgrade</Button>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {showShortlistModal && <ShortlistModal />}
+      {showHistoryModal && <HistoryModal />}
+    </div>
+  );
+};
+// ============================================
+// Screen: Shortlists
+// ============================================
+
+// ============================================
+// Screen: Shortlists (state-driven)
+// ============================================
+const ShortlistScreen = ({ dark, shortlists = [], shortlistEntries = {}, players = SAMPLE_PLAYERS, onSelectPlayer, onRemoveFromShortlist, pushToast }) => {
+  const [activeList, setActiveList] = useState(shortlists?.[0]?.id || 'fm-shortlist');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const surface = dark ? 'bg-slate-800/50 backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const hover = dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const toast = (variant, title, message) => pushToast?.({ variant, title, message });
+
+  const lists = shortlists?.length ? shortlists : [{ id: 'fm-shortlist', name: 'FM Shortlist', color: 'blue', synced: true }];
+  const active = lists.find(l => l.id === activeList) || lists[0];
+  const entries = shortlistEntries?.[active.id] || {};
+  const playerRows = Object.keys(entries)
+    .map((pid) => ({ pid, entry: entries[pid], player: players.find(p => p.id === pid) }))
+    .filter((x) => x.player);
+
+  const tagColors = {
+    target: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
+    watchlist: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
+    loan: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
+    do_not_buy: 'bg-red-500/15 text-red-400 border-red-500/20',
+  };
+
+  return (
+    <div className={`flex-1 flex ${bg}`}>
+      <div className={`w-72 ${surface} border-r ${border} flex flex-col`}>
+        <div className={`p-4 border-b ${border}`}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className={`font-semibold ${text}`}>Shortlists</h2>
+            <Button variant="ghost" size="sm" icon={Plus} dark={dark} title="Create (prototype)" />
+          </div>
+          <div className={`flex items-center gap-2 text-xs ${dark ? 'bg-emerald-500/10' : 'bg-emerald-50'} text-emerald-400 px-3 py-2 rounded-xl border border-emerald-500/20`}>
+            <Check size={14} /><span>Synced with FM</span><span className={`ml-auto ${muted}`}>2m ago</span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto p-3 space-y-1">
+          {lists.map((list) => {
+            const count = Object.keys(shortlistEntries?.[list.id] || {}).length;
+            return (
+              <button
+                key={list.id}
+                onClick={() => setActiveList(list.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${activeList === list.id ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : `${hover} ${muted}`}`}
+              >
+                <div className={`w-2.5 h-2.5 rounded-full ${list.color === 'emerald' ? 'bg-emerald-500' : list.color === 'amber' ? 'bg-amber-500' : list.color === 'purple' ? 'bg-purple-500' : 'bg-blue-500'}`} />
+                <span className="flex-1 text-left text-sm font-medium">{list.name}</span>
+                <span className="text-xs">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className={`p-3 border-t ${border} space-y-2`}>
+          <Button variant="secondary" size="sm" icon={Upload} dark={dark} className="w-full">Import</Button>
+          <Button variant="secondary" size="sm" icon={Download} dark={dark} className="w-full">Export</Button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col">
+        <header className={`h-14 ${surface} border-b ${border} flex items-center px-6 gap-4`}>
+          <h1 className={`font-semibold ${text}`}>{active?.name || 'Shortlist'}</h1>
+          <Badge variant="primary">{playerRows.length} players</Badge>
+          <div className="flex-1" />
+          <Button variant="ghost" size="sm" icon={RefreshCw} dark={dark}>Sync</Button>
+          <Button variant="ghost" size="sm" icon={GitCompare} dark={dark} title="Compare (open Comparison screen)">Compare</Button>
+        </header>
+
+        <div className="flex-1 overflow-auto">
+          {playerRows.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={List}
+                title="No players in this shortlist"
+                description="Add players from Player Profile or Search."
+                action={<Button variant="secondary" size="sm" dark={dark} icon={Plus}>Add Players</Button>}
+                dark={dark}
+              />
+            </div>
+          ) : (
+            playerRows.map(({ pid, entry, player }) => (
+              <div
+                key={pid}
+                className={`flex items-center gap-4 px-6 py-4 border-b ${border} ${hover} ${onSelectPlayer ? 'cursor-pointer' : ''}`}
+                onClick={() => onSelectPlayer?.(pid)}
+              >
+                <Avatar dark={dark} name={player.name} size="lg" />
+                <div className="flex-1">
+                  <div className={`font-medium ${text} flex items-center gap-2`}>
+                    {player.name} <span className="text-sm">{player.nation}</span>
+                  </div>
+                  <div className={`text-sm ${muted}`}>{player.pos} • {player.club}</div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <AttributeValue value={Math.floor(player.ca / 10)} size="sm" />
+                  <span className={muted}>/</span>
+                  <AttributeValue value={Math.floor(player.pa / 10)} size="sm" />
+                </div>
+
+                {entry?.tag && (
+                  <span className={`text-xs px-2.5 py-1 rounded-full border ${tagColors[entry.tag] || tagColors.watchlist}`}>{entry.tag}</span>
+                )}
+                {entry?.note && <span className={`text-xs ${muted} max-w-40 truncate`}>{entry.note}</span>}
+
+                <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={Trash2}
+                    dark={dark}
+                    title="Remove from shortlist"
+                    onClick={() => {
+                      onRemoveFromShortlist?.(pid, active.id);
+                      toast('warning', 'Removed', `${player.name} removed from ${active.name}.`);
+                    }}
+                  />
+                  <Button variant="ghost" size="sm" icon={MoreHorizontal} dark={dark} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+// ============================================
+// Screen: Comparison
+// ============================================
+
+// ============================================
+// Screen: Comparison (state-driven)
+// ============================================
+const ComparisonScreen = ({ dark, players = SAMPLE_PLAYERS, comparisonIds = [], onToggleCompare, onSelectPlayer }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const comparedPlayers = comparisonIds
+    .map((id) => players.find((p) => p.id === id))
+    .filter(Boolean);
+
+
+const basePlayer = comparedPlayers?.[0] || null;
+const baseIsGK = isGoalkeeperPlayer(basePlayer);
+
+const defaultCompareGroups = useMemo(
+  () => (baseIsGK ? DEFAULT_GROUPS_GK : DEFAULT_GROUPS_OUTFIELD),
+  [basePlayer?.id, baseIsGK]
+);
+
+const [selectedCompareGroups, setSelectedCompareGroups] = useState(defaultCompareGroups);
+const compareGroupRefs = useRef({});
+
+useEffect(() => {
+  setSelectedCompareGroups(defaultCompareGroups);
+  compareGroupRefs.current = {};
+}, [basePlayer?.id]); // reset when base changes
+
+const orderedSelectedGroups = ATTRIBUTE_GROUP_ORDER.filter((g) => (selectedCompareGroups || []).includes(g));
+
+const jumpToGoalkeeping = () => {
+  setSelectedCompareGroups((prev) => {
+    const has = (prev || []).includes('Goalkeeping');
+    const next = has ? (prev || []) : [...(prev || []), 'Goalkeeping'];
+    return ATTRIBUTE_GROUP_ORDER.filter((g) => next.includes(g));
+  });
+  setTimeout(() => {
+    const el = compareGroupRefs.current?.Goalkeeping;
+    if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 0);
+};
+
+  const topAttrs = (p) => {
+    const a = p.attrs || {};
+    return Object.entries(a)
+      .map(([k, v]) => ({ k, name: k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()), v }))
+      .filter(x => typeof x.v === 'number')
+      .sort((x, y) => y.v - x.v)
+      .slice(0, 4);
+  };
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className={`text-2xl font-bold ${text}`}>Comparison</h1>
+          <p className={`${muted} text-sm mt-1`}>Add/remove players from Player Profile. Max size is enforced in app state (prototype).</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" icon={Download} dark={dark}>Export</Button>
+        </div>
+      </div>
+
+      {comparedPlayers.length === 0 ? (
+        <Card dark={dark} className="p-8">
+          <EmptyState
+            icon={GitCompare}
+            title="No players in compare"
+            description="Open a player profile and tap “Compare” to add them here."
+            action={<Button variant="secondary" size="sm" dark={dark} icon={Search}>Go to Search</Button>}
+            dark={dark}
+          />
+        </Card>
+      
+) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-6">
+          {comparedPlayers.map((p) => (
+            <Card key={p.id} dark={dark} hover className="p-6">
+              <div className="flex items-start gap-4">
+                <Avatar dark={dark} name={p.name} size="xl" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <button className={`font-semibold ${text} hover:underline`} onClick={() => onSelectPlayer?.(p.id)}>{p.name}</button>
+                    <span className="text-xl">{p.nation}</span>
+                  </div>
+                  <div className={`text-sm ${muted}`}>{p.pos} • {p.club}</div>
+                  <div className="flex gap-4 mt-3">
+                    <div>
+                      <div className={`text-xs ${muted}`}>CA</div>
+                      <div className="text-emerald-400 font-bold">{p.ca}</div>
+                    </div>
+                    <div>
+                      <div className={`text-xs ${muted}`}>PA</div>
+                      <div className="text-blue-400 font-bold">{p.pa}</div>
+                    </div>
+                    <div className="flex-1">
+                      <div className={`text-xs ${muted}`}>Value</div>
+                      <div className={`text-sm font-semibold ${text}`}>{p.value}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={X}
+                  dark={dark}
+                  title="Remove from compare"
+                  onClick={() => onToggleCompare?.(p.id)}
+                />
+              </div>
+
+              <div className={`mt-5 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`text-sm font-semibold ${text}`}>Top attributes</div>
+                  <Badge variant="primary" size="xs">{p.positionsLabel || p.pos}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {topAttrs(p).map((x) => (
+                    <div key={x.k} className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+                      <div className={`text-xs ${muted}`}>{x.name}</div>
+                      <div className="flex items-center justify-between mt-1">
+                        <ProgressBar value={x.v} max={20} variant={x.v >= 17 ? 'success' : 'warning'} size="sm" />
+                        <AttributeValue value={x.v} size="sm" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          ))}
+          </div>
+
+          <Card dark={dark} className="p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className={`text-sm font-semibold ${text}`}>Attribute comparison</div>
+                <div className={`text-xs ${muted} mt-1`}>
+                  Base: <span className={`${text} font-medium`}>{basePlayer?.name || '—'}</span> • Default groups follow base type ({baseIsGK ? 'GK' : 'Outfield'}).
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" dark={dark} icon={GKIcon} onClick={jumpToGoalkeeping} title="Jump to Goalkeeping">
+                  Goalkeeping
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4">
+              {ATTRIBUTE_GROUP_ORDER.map((g) => {
+                const on = (selectedCompareGroups || []).includes(g);
+                const isDefault = (defaultCompareGroups || []).includes(g);
+                const count = getAttributeGroupDefs(g, { isGKContext: baseIsGK }).length;
+
+                return (
+                  <button
+                    key={g}
+                    onClick={() => {
+                      setSelectedCompareGroups((prev) => {
+                        const has = (prev || []).includes(g);
+                        const next = has ? (prev || []).filter((x) => x !== g) : [...(prev || []), g];
+                        return ATTRIBUTE_GROUP_ORDER.filter((x) => next.includes(x));
+                      });
+                    }}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                      on
+                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                        : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'} ${border}`
+                    }`}
+                    title={isDefault ? 'Default group' : 'Optional group'}
+                  >
+                    {g === 'Goalkeeping' ? <GKIcon size={14} className={on ? 'border-blue-500/40' : ''} /> : null}
+                    <span>{g}</span>
+                    <Badge variant={on ? 'primary' : 'default'} size="xs" dark={dark}>{count}</Badge>
+                    {isDefault ? <span className={`${muted} text-[10px]`}>• default</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {orderedSelectedGroups.map((groupName) => {
+                const defs = getAttributeGroupDefs(groupName, { isGKContext: baseIsGK });
+                return (
+                  <div
+                    key={groupName}
+                    ref={(el) => { if (el) compareGroupRefs.current[groupName] = el; }}
+                    className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {groupName === 'Goalkeeping' ? <GKIcon size={16} /> : null}
+                        <div className={`text-sm font-semibold ${text}`}>{groupName}</div>
+                      </div>
+                      <Badge variant="default" size="xs" dark={dark}>{defs.length} attrs</Badge>
+                    </div>
+
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className={`${muted} text-xs`}>
+                            <th className="text-left py-2 pr-4 whitespace-nowrap">Attribute</th>
+                            {comparedPlayers.map((p) => (
+                              <th key={p.id} className="text-left py-2 pr-4 whitespace-nowrap">
+                                <span className={`${text} font-medium`}>{p.name}</span>
+                                <span className={`ml-2 ${muted}`}>{p.pos}</span>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {defs.map((d) => {
+                            const values = comparedPlayers.map((p) => Number(p?.attrs?.[d.key]) || 0);
+                            const max = values.length ? Math.max(...values) : 0;
+
+                            return (
+                              <tr key={d.key} className={`${dark ? 'border-t border-slate-700/30' : 'border-t border-slate-200'}`}>
+                                <td className={`py-2 pr-4 whitespace-nowrap ${muted}`}>{d.label}</td>
+                                {values.map((v, i) => (
+                                  <td key={`${d.key}_${i}`} className="py-2 pr-4">
+                                    <span className={`inline-flex items-center gap-2 ${v === max ? 'ring-1 ring-emerald-500/30 rounded-lg p-0.5' : ''}`}>
+                                      <AttributeValue value={v} size="sm" />
+                                      <span className={`text-xs ${muted}`}>{i === 0 ? 'base' : `${v - values[0] >= 0 ? '+' : ''}${v - values[0]}`}</span>
+                                    </span>
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      )
+}
+    </div>
+  );
+};
+// ============================================
+// Screen: Rating Engine (Role Pair Selector + Coefficient Editor + Live Preview)
+// ============================================
+const RatingDesignerScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const [mode, setMode] = useState('pair'); // 'pair' | 'single'
+  const [ipRoleId, setIpRoleId] = useState('afba');
+  const [oopRoleId, setOopRoleId] = useState('pf');
+  const [ipShare, setIpShare] = useState(60);
+
+  const [overridesIP, setOverridesIP] = useState({});
+  const [overridesOOP, setOverridesOOP] = useState({});
+
+  const [packsIP, setPacksIP] = useState(['ball_progression']);
+  const [packsOOP, setPacksOOP] = useState(['pressing_intensity']);
+
+  const ipRole = getRoleById(ipRoleId);
+  const oopRole = getRoleById(oopRoleId);
+
+  const mix = mode === 'single' ? { ip: 1, oop: 0 } : { ip: ipShare / 100, oop: 1 - ipShare / 100 };
+
+  const ipWeights = buildEffectiveWeights(ipRole.ipWeights, overridesIP, packsIP, 'ip');
+  const oopWeights = mode === 'pair'
+    ? buildEffectiveWeights(oopRole.oopWeights, overridesOOP, packsOOP, 'oop')
+    : {};
+
+  const resetAll = () => {
+    setMode('pair');
+    setIpRoleId('afba');
+    setOopRoleId('pf');
+    setIpShare(60);
+    setOverridesIP({});
+    setOverridesOOP({});
+    setPacksIP(['ball_progression']);
+    setPacksOOP(['pressing_intensity']);
+  };
+
+  const togglePack = (scope, id) => {
+    const setter = scope === 'ip' ? setPacksIP : setPacksOOP;
+    const current = scope === 'ip' ? packsIP : packsOOP;
+    if (current.includes(id)) setter(current.filter(x => x !== id));
+    else setter([...current, id]);
+  };
+
+  const quickPairs = [
+    { id: 'fb_w', label: 'FB/WB + Press', ip: 'afba', oop: 'pf', share: 60 },
+    { id: 'creator', label: 'Creator + Press', ip: 'apss', oop: 'pf', share: 70 },
+    { id: 'dm_lock', label: 'DLP(D) + Duels', ip: 'dlpd', oop: 'bpd', share: 55 },
+    { id: 'striker', label: 'AF + Minimal OOP', ip: 'af', oop: 'af', share: 85 },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Rating Engine</h1>
+            <Badge variant="primary">FM26</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Role Pair Selector + Coefficient Editor (IP/OOP) + Live Preview.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" icon={RotateCcw} dark={dark} onClick={resetAll}>Reset</Button>
+          <Button variant="secondary" size="md" icon={HelpCircle} dark={dark}>Docs</Button>
+          <Button variant="primary" size="md" icon={Save}>Save Preset</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 col-span-1">
+          <RolePairSelector
+            dark={dark}
+            mode={mode}
+            ipRoleId={ipRoleId}
+            oopRoleId={oopRoleId}
+            onModeChange={setMode}
+            onChange={({ ipRoleId: ip, oopRoleId: oop }) => {
+              setIpRoleId(ip);
+              setOopRoleId(oop);
+            }}
+          />
+
+          <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <div className={`text-sm font-semibold ${text}`}>IP vs OOP Mix</div>
+              <Badge variant="primary">{mix.ip.toFixed(2)} / {mix.oop.toFixed(2)}</Badge>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={mode === 'single' ? 100 : ipShare}
+              onChange={(e) => setIpShare(Number(e.target.value))}
+              disabled={mode === 'single'}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[10px] mt-1">
+              <span className={muted}>OOP heavy</span>
+              <span className={muted}>IP heavy</span>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className={`text-[10px] uppercase tracking-wider ${muted} mb-2`}>Quick pairs</div>
+            <div className="grid grid-cols-1 gap-2">
+              {quickPairs.map((q) => (
+                <button
+                  key={q.id}
+                  onClick={() => {
+                    setMode('pair');
+                    setIpRoleId(q.ip);
+                    setOopRoleId(q.oop);
+                    setIpShare(q.share);
+                  }}
+                  className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'} text-left`}
+                >
+                  <div className={`text-sm font-medium ${text}`}>{q.label}</div>
+                  <div className={`text-xs ${muted}`}>{getRoleById(q.ip).name} ↔ {getRoleById(q.oop).name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-emerald-500/5' : 'bg-emerald-50'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 size={16} className="text-emerald-500" />
+              <div className={`text-sm font-semibold ${text}`}>Wiring</div>
+            </div>
+            <div className={`text-xs ${muted}`}>
+              Saved presets are used by Player Search (Role Fit column), Top Lists sorting, and exports.
+            </div>
+          </div>
+        </Card>
+
+        <div className="col-span-2 grid grid-cols-2 gap-6">
+          <CoefficientEditor
+            dark={dark}
+            title="Coefficient Editor — IP"
+            scope="ip"
+            baseWeights={ipRole.ipWeights}
+            overrides={overridesIP}
+            selectedPacks={packsIP}
+            onTogglePack={(id) => togglePack('ip', id)}
+            onOverrideChange={(k, v) => setOverridesIP((prev) => ({ ...prev, [k]: v }))}
+          />
+
+          <CoefficientEditor
+            dark={dark}
+            title="Coefficient Editor — OOP"
+            scope="oop"
+            baseWeights={oopRole.oopWeights}
+            overrides={overridesOOP}
+            selectedPacks={packsOOP}
+            onTogglePack={(id) => togglePack('oop', id)}
+            onOverrideChange={(k, v) => setOverridesOOP((prev) => ({ ...prev, [k]: v }))}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <RolePairLivePreview dark={dark} ipWeights={ipWeights} oopWeights={oopWeights} mix={mix} />
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: History Points & Snapshots
+// ============================================
+
+// ============================================
+// Screen: History Points & Snapshots (state-driven)
+// ============================================
+const HistoryPointsScreen = ({ dark, players = SAMPLE_PLAYERS, historyPoints = [], defaultPlayerId, onRemoveHistoryPoint, pushToast }) => {
+  const [autoSnapshots, setAutoSnapshots] = useState(true);
+  const [playerId, setPlayerId] = useState(defaultPlayerId || historyPoints?.[0]?.playerId || players?.[0]?.id);
+
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const toast = (variant, title, message) => pushToast?.({ variant, title, message });
+
+  const player = players.find(p => p.id === playerId);
+  const points = historyPoints
+    .filter(p => p.playerId === playerId)
+    .slice()
+    .sort((a, b) => new Date(a.dateISO).getTime() - new Date(b.dateISO).getTime());
+
+  const values = points.map(p => p.ca);
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  const path = points.length >= 2 ? points.map((p, i) => {
+    const x = (i / (points.length - 1)) * 260 + 20;
+    const y = 90 - ((p.ca - min) / Math.max(1, (max - min))) * 60;
+    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+  }).join(' ') : '';
+
+  const playersWithPoints = Array.from(new Set(historyPoints.map(h => h.playerId)))
+    .map(pid => players.find(p => p.id === pid))
+    .filter(Boolean);
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className={`text-2xl font-bold ${text}`}>History Points</h1>
+          <p className={`${muted} text-sm mt-1`}>Snapshots created from Player Profile → “Track History”.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" icon={Plus} dark={dark} title="Create from profile (prototype)">Create History Point</Button>
+          <Button variant="secondary" size="md" icon={Download} dark={dark}>Export</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 col-span-2">
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <div>
+              <h3 className={`font-semibold ${text}`}>Timeline (CA)</h3>
+              <div className={`text-xs ${muted}`}>{player ? `${player.name} • ${player.club}` : 'Select a player'}</div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={playerId || ''}
+                onChange={(e) => setPlayerId(e.target.value)}
+                className={`px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900'}`}
+              >
+                {(playersWithPoints.length ? playersWithPoints : players).map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <Badge variant="primary">{points.length} points</Badge>
+            </div>
+          </div>
+
+          {points.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                icon={History}
+                title="No history points yet"
+                description="Open a player profile and click “Track History” to create the first snapshot."
+                dark={dark}
+              />
+            </div>
+          ) : (
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+              <svg viewBox="0 0 300 120" className="w-full h-28">
+                {path && <path d={path} fill="none" stroke="currentColor" className="text-blue-500" strokeWidth="3" />}
+                {points.map((p, i) => {
+                  const x = points.length === 1 ? 150 : (i / (points.length - 1)) * 260 + 20;
+                  const y = 90 - ((p.ca - min) / Math.max(1, (max - min))) * 60;
+                  return <circle key={p.id} cx={x} cy={y} r="5" className="text-blue-500" fill="currentColor" />;
+                })}
+              </svg>
+
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                {points.slice(-3).map(p => (
+                  <div key={p.id} className={`p-3 rounded-xl ${dark ? 'bg-slate-800/60' : 'bg-slate-50'} border ${border}`}>
+                    <div className={`text-xs ${muted}`}>{formatISODate(p.dateISO)}</div>
+                    <div className={`text-sm font-semibold ${text}`}>{p.label}</div>
+                    <div className={`text-xs ${muted}`}>CA: <span className={`font-semibold text-emerald-400`}>{p.ca}</span> • PA: <span className="font-semibold text-blue-400">{p.pa}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        <Card dark={dark} className="p-6">
+          <h3 className={`font-semibold ${text} mb-4`}>Automation</h3>
+          <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className={`text-sm font-medium ${text}`}>Automatic snapshots</div>
+                <div className={`text-xs ${muted}`}>Every 6 months (prototype)</div>
+              </div>
+              <button
+                onClick={() => setAutoSnapshots(v => !v)}
+                className={`w-12 h-7 rounded-full transition-all ${autoSnapshots ? 'bg-blue-500' : dark ? 'bg-slate-700' : 'bg-slate-200'}`}
+              >
+                <div className={`w-6 h-6 rounded-full bg-white shadow transform transition-all ${autoSnapshots ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            <div className={`text-xs ${muted} mt-3`}>Warn users about performance impact for large databases.</div>
+          </div>
+
+          <div className={`mt-4 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+            <h4 className={`text-sm font-semibold ${text} mb-3`}>Manage points</h4>
+            {points.length === 0 ? (
+              <div className={`text-xs ${muted}`}>No points to manage.</div>
+            ) : (
+              <div className="space-y-2">
+                {points.slice().reverse().map(p => (
+                  <div key={p.id} className={`flex items-center gap-2 p-2 rounded-xl ${dark ? 'bg-slate-800/60' : 'bg-slate-50'} border ${border}`}>
+                    <div className="flex-1">
+                      <div className={`text-sm ${text}`}>{p.label}</div>
+                      <div className={`text-xs ${muted}`}>{formatISODate(p.dateISO)} • CA {p.ca}</div>
+                    </div>
+                    <Button variant="ghost" size="sm" dark={dark} icon={Trash2} onClick={() => {
+                      onRemoveHistoryPoint?.(p.id);
+                      toast('warning', 'History point removed', `${player?.name || 'Player'} • ${p.label}`);
+                    }} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+// ============================================
+// Screen: Staff Interface
+// ============================================
+const StaffInterfaceScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const staff = [
+    { name: 'Rui Almeida', role: 'Head of Youth Development', nation: '🇵🇹', rep: 4.5, youth: 5, judgePA: 4, working: 5 },
+    { name: 'Daniel Clarke', role: 'Assistant Manager', nation: '🏴', rep: 4.0, motiv: 5, tact: 4, man: 4 },
+    { name: 'Miguel Santos', role: 'Scout', nation: '🇵🇹', rep: 3.5, judgePA: 4, judgeCA: 4, adapt: 4 },
+    { name: 'Alex Chen', role: 'Physio', nation: '🇨🇳', rep: 3.0, phys: 4, rehab: 4, sports: 3 },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className={`text-2xl font-bold ${text}`}>Staff</h1>
+          <p className={`${muted} text-sm mt-1`}>Role presets, star sliders, and card-based staff results.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" icon={Save} dark={dark}>Save Preset</Button>
+          <Button variant="secondary" size="md" icon={Download} dark={dark}>Export</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 col-span-1">
+          <h3 className={`font-semibold ${text} mb-4`}>Role presets</h3>
+          <div className="space-y-2">
+            {['Head of Youth', 'Assistant Manager', 'Scout', 'Physio'].map((p) => (
+              <button key={p} className={`w-full text-left p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
+                <div className={`text-sm font-medium ${text}`}>{p}</div>
+                <div className={`text-xs ${muted}`}>Pre-fills relevant filters</div>
+              </button>
+            ))}
+          </div>
+
+          <div className={`mt-5 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Star size={16} className="text-amber-500" />
+              <div className={`text-sm font-medium ${text}`}>Reputation gauge</div>
+            </div>
+            <div className={`text-xs ${muted}`}>Visualise staff reputation relative to your club’s standing.</div>
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-5 col-span-2">
+          <h3 className={`font-semibold ${text} mb-4`}>Suggested staff</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {staff.map((s) => (
+              <Card key={s.name} dark={dark} hover className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar dark={dark} name={s.name} size="lg" />
+                  <div className="flex-1">
+                    <div className={`font-semibold ${text}`}>{s.name} <span className="ml-2">{s.nation}</span></div>
+                    <div className={`text-sm ${muted}`}>{s.role}</div>
+                  </div>
+                  <Badge variant="primary">{s.rep.toFixed(1)}★</Badge>
+                </div>
+
+                <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                  <div className={`text-xs ${muted} uppercase tracking-wider mb-2`}>Key stars</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {Object.entries(s).filter(([k]) => !['name','role','nation','rep'].includes(k)).slice(0,3).map(([k,v]) => (
+                      <div key={k} className="text-center">
+                        <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{k}</div>
+                        <div className="flex justify-center mt-1">
+                          {[1,2,3,4,5].map((i) => (
+                            <Star key={i} size={12} className={i <= v ? 'text-amber-500' : muted} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <Button variant="secondary" size="sm" dark={dark} className="flex-1" icon={UserPlus}>Shortlist</Button>
+                  <Button variant="ghost" size="sm" dark={dark} icon={ChevronRight} />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Club Interface
+// ============================================
+const ClubInterfaceScreen = ({ dark }) => {
+  const [tab, setTab] = useState('info');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className={`text-2xl font-bold ${text}`}>Club Profile</h1>
+          <p className={`${muted} text-sm mt-1`}>Overview, finances, and tactics board with formation insights.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Users}>View Squad</Button>
+        </div>
+      </div>
+
+      <Card dark={dark} className="p-6 mb-6">
+        <div className="flex items-start gap-5">
+          <div className={`w-16 h-16 rounded-2xl ${dark ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center`}>
+            <Trophy size={28} className="text-blue-500" />
+          </div>
+          <div className="flex-1">
+            <div className={`text-xl font-bold ${text}`}>Brighton</div>
+            <div className={`text-sm ${muted}`}>England • Premier League</div>
+
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              {[
+                { label: 'Stadium', value: '31,800' },
+                { label: 'Training', value: '85/100' },
+                { label: 'Youth', value: '82/100' },
+              ].map((item) => (
+                <div key={item.label} className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                  <div className={`text-xs ${muted}`}>{item.label}</div>
+                  <div className={`text-sm font-semibold ${text}`}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="min-w-[220px]">
+            <div className={`text-xs ${muted} mb-2`}>Finances (balance vs budget)</div>
+            <ProgressBar value={72} max={100} variant="success" size="lg" />
+            <div className={`text-xs ${muted} mt-2`}>Healthy balance • room to spend</div>
+          </div>
+        </div>
+      </Card>
+
+      <div className={`flex border-b ${border} mb-6`}>
+        {[
+          { id: 'info', label: 'Information', icon: Info },
+          { id: 'kits', label: 'Kit & Finances', icon: DollarSign },
+          { id: 'tactics', label: 'Tactics', icon: Layout },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium relative ${tab === t.id ? text : muted}`}
+          >
+            <t.icon size={16} />
+            {t.label}
+            {tab === t.id && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-blue-500 rounded-full" />}
+          </button>
+        ))}
+      </div>
+
+      {tab !== 'tactics' ? (
+        <div className="grid grid-cols-3 gap-6">
+          <Card dark={dark} className="p-5 col-span-2">
+            <h3 className={`font-semibold ${text} mb-4`}>Club overview</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Continental reputation', value: '★★★★☆' },
+                { label: 'Domestic reputation', value: '★★★★☆' },
+                { label: 'Attendance', value: '29,140' },
+                { label: 'Supporters', value: 'Excellent' },
+              ].map((x) => (
+                <div key={x.label} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className={`text-xs ${muted}`}>{x.label}</div>
+                  <div className={`text-sm font-semibold ${text}`}>{x.value}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card dark={dark} className="p-5">
+            <h3 className={`font-semibold ${text} mb-4`}>Quick links</h3>
+            <div className="space-y-2">
+              {[
+                { icon: Users, label: 'Top players in club' },
+                { icon: UserCog, label: 'Best staff in club' },
+                { icon: Search, label: 'Search linked entities' },
+              ].map((l) => (
+                <button key={l.label} className={`w-full flex items-center gap-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10 hover:bg-slate-900/20' : 'bg-white hover:bg-slate-50'}`}>
+                  <l.icon size={16} className="text-blue-500" />
+                  <span className={`text-sm font-medium ${text}`}>{l.label}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-6">
+          <Card dark={dark} className="p-5 col-span-2">
+            <h3 className={`font-semibold ${text} mb-4`}>Formation board</h3>
+            <div className={`p-5 rounded-2xl border ${border} ${dark ? 'bg-emerald-500/5' : 'bg-emerald-50'} relative overflow-hidden`}>
+              <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+              <div className="relative grid grid-cols-5 gap-3">
+                {[...Array(11)].map((_, i) => (
+                  <div key={i} className={`h-14 rounded-2xl ${dark ? 'bg-slate-900/40' : 'bg-white/70'} border ${border} flex items-center justify-center`}>
+                    <Users size={18} className={muted} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card dark={dark} className="p-5">
+            <h3 className={`font-semibold ${text} mb-4`}>Tactics insights</h3>
+            <div className="space-y-4">
+              {[
+                { label: '4-2-3-1', score: 82 },
+                { label: '4-3-3', score: 76 },
+                { label: '3-4-3', score: 69 },
+              ].map((f) => (
+                <div key={f.label} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-sm font-semibold ${text}`}>{f.label}</div>
+                    <Badge variant={f.score >= 80 ? 'success' : 'warning'}>{f.score}</Badge>
+                  </div>
+                  <ProgressBar value={f.score} max={100} variant={f.score >= 80 ? 'success' : 'warning'} size="sm" />
+                </div>
+              ))}
+              <div className={`text-xs ${muted}`}>Suggest tactics that suit your current squad (placeholder).</div>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Top Lists (g edition)
+// ============================================
+const TopListsScreen = ({ dark }) => {
+  const [view, setView] = useState('top_players');
+
+  // Role Fit profile (same wiring as Search + Rating Engine)
+  const [roleMode, setRoleMode] = useState('pair');
+  const [ipRoleId, setIpRoleId] = useState('afba');
+  const [oopRoleId, setOopRoleId] = useState('pf');
+  const [ipShare, setIpShare] = useState(60);
+  const [packsIP, setPacksIP] = useState(['ball_progression']);
+  const [packsOOP, setPacksOOP] = useState(['pressing_intensity']);
+
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const roleMix = roleMode === 'single' ? { ip: 1, oop: 0 } : { ip: ipShare / 100, oop: 1 - ipShare / 100 };
+  const roleIP = getRoleById(ipRoleId);
+  const roleOOP = getRoleById(oopRoleId);
+  const roleIPWeights = buildEffectiveWeights(roleIP.ipWeights, {}, packsIP, 'ip');
+  const roleOOPWeights = roleMode === 'pair' ? buildEffectiveWeights(roleOOP.oopWeights, {}, packsOOP, 'oop') : {};
+
+  const togglePack = (scope, id) => {
+    const setter = scope === 'ip' ? setPacksIP : setPacksOOP;
+    const current = scope === 'ip' ? packsIP : packsOOP;
+    if (current.includes(id)) setter(current.filter(x => x !== id));
+    else setter([...current, id]);
+  };
+
+  const players = [
+    { name: 'Lamine Yamal', pos: 'RW', club: 'Barcelona', ca: 156, pa: 189, valueNum: 120, attrs: { pace: 17, acceleration: 17, dribbling: 16, technique: 15, firstTouch: 14, passing: 12, vision: 12, offTheBall: 15, decisions: 12, composure: 12, crossing: 13, workRate: 12, teamwork: 11, stamina: 13, tackling: 7, positioning: 7, anticipation: 10, strength: 9 } },
+    { name: 'Endrick', pos: 'ST', club: 'Real Madrid', ca: 142, pa: 182, valueNum: 80, attrs: { pace: 15, acceleration: 16, dribbling: 13, technique: 13, firstTouch: 13, passing: 10, vision: 9, offTheBall: 15, decisions: 12, composure: 14, workRate: 13, teamwork: 11, stamina: 13, tackling: 7, positioning: 8, anticipation: 12, strength: 14, finishing: 16 } },
+    { name: 'W. Zaïre-Emery', pos: 'CM', club: 'PSG', ca: 148, pa: 178, valueNum: 90, attrs: { pace: 13, acceleration: 13, dribbling: 12, technique: 12, firstTouch: 12, passing: 14, vision: 13, offTheBall: 12, decisions: 13, composure: 13, workRate: 15, teamwork: 14, stamina: 15, tackling: 12, positioning: 12, anticipation: 12, strength: 12 } },
+    { name: 'Pau Cubarsí', pos: 'CB', club: 'Barcelona', ca: 144, pa: 176, valueNum: 60, attrs: { pace: 13, acceleration: 12, dribbling: 8, technique: 9, firstTouch: 10, passing: 12, vision: 10, decisions: 13, composure: 14, workRate: 13, teamwork: 13, stamina: 13, tackling: 15, positioning: 15, anticipation: 14, strength: 14 } },
+  ];
+
+  const rows = players
+    .map((p) => {
+      const base = calcRolePairScore({ attrs: p.attrs, ipWeights: roleIPWeights, oopWeights: roleOOPWeights, mix: roleMix }).total;
+      const promisingBoost = Math.round((p.pa - p.ca) / 2);
+      const bargainBoost = Math.round(Math.max(0, 120 - p.valueNum) / 6);
+      const score = view === 'most_promising'
+        ? clamp(base + promisingBoost, 0, 100)
+        : view === 'top_bargains'
+          ? clamp(base + bargainBoost, 0, 100)
+          : base;
+      return { ...p, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Top Lists</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Curated views driven by your Rating Engine preset (Role Fit).</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Save}>Save as Preset</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export</Button>
+        </div>
+      </div>
+
+      <div className="flex gap-2 mb-6">
+        {[
+          { id: 'top_players', label: 'Top Players', icon: Trophy },
+          { id: 'most_promising', label: 'Most Promising', icon: TrendingUp },
+          { id: 'top_bargains', label: 'Top Bargains', icon: Tag },
+        ].map((t) => (
+          <button key={t.id} onClick={() => setView(t.id)} className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 border ${border} ${view === t.id ? 'bg-blue-500 text-white border-blue-500/30' : dark ? 'bg-slate-900/20 text-slate-300 hover:bg-slate-900/30' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>
+            <t.icon size={16} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <Card dark={dark} className="p-5 mb-6">
+        <div className="grid grid-cols-3 gap-6 items-start">
+          <div className="col-span-2">
+            <RolePairSelector
+              dark={dark}
+              compact={false}
+              mode={roleMode}
+              ipRoleId={ipRoleId}
+              oopRoleId={oopRoleId}
+              onModeChange={setRoleMode}
+              onChange={({ ipRoleId: ip, oopRoleId: oop }) => {
+                setIpRoleId(ip);
+                setOopRoleId(oop);
+              }}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className={`text-sm font-semibold ${text}`}>Mix</div>
+                <Badge variant="primary">{roleMix.ip.toFixed(2)} / {roleMix.oop.toFixed(2)}</Badge>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={roleMode === 'single' ? 100 : ipShare}
+                onChange={(e) => setIpShare(Number(e.target.value))}
+                disabled={roleMode === 'single'}
+                className="w-full"
+              />
+              <div className="flex justify-between text-[10px] mt-1">
+                <span className={muted}>OOP heavy</span>
+                <span className={muted}>IP heavy</span>
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+              <div className={`text-[10px] uppercase tracking-wider ${muted} mb-2`}>Packs</div>
+              <div className="flex flex-wrap gap-2">
+                {['ball_progression', 'chance_creation', 'pressing_intensity', 'defensive_duels', 'athleticism'].map((pid) => {
+                  const p = FM26_MODIFIER_PACKS.find(x => x.id === pid);
+                  const active = (packsIP.includes(pid) || packsOOP.includes(pid));
+                  return (
+                    <button
+                      key={pid}
+                      onClick={() => {
+                        // quick toggle: route pack to its declared scope
+                        const scope = (FM26_MODIFIER_PACKS.find(x => x.id === pid)?.scope || 'both');
+                        if (scope === 'ip') togglePack('ip', pid);
+                        else if (scope === 'oop') togglePack('oop', pid);
+                        else { togglePack('ip', pid); togglePack('oop', pid); }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border ${border} ${active ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : dark ? 'bg-slate-900/10 text-slate-300' : 'bg-white text-slate-700'}`}
+                    >
+                      {p?.name || pid}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card dark={dark} className="overflow-hidden">
+        <table className="w-full">
+          <thead className={`${dark ? 'bg-slate-800/80' : 'bg-slate-50'} sticky top-0 z-10`}>
+            <tr className={`text-xs ${muted} uppercase tracking-wider`}>
+              <th className="text-left p-4">Player</th>
+              <th className="text-left p-4">Position</th>
+              <th className="text-left p-4">Club</th>
+              <th className="text-center p-4">Role Fit</th>
+              <th className="text-center p-4 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.name} className={`border-b ${border} ${dark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}`}>
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar dark={dark} name={r.name} size="sm" />
+                    <div className={`font-medium ${text}`}>{r.name}</div>
+                  </div>
+                </td>
+                <td className={`p-4 ${muted}`}>{r.pos}</td>
+                <td className={`p-4 ${muted}`}>{r.club}</td>
+                <td className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-20"><ProgressBar value={r.score} max={100} variant={r.score >= 85 ? 'success' : 'warning'} size="sm" /></div>
+                    <span className={`text-xs ${r.score >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>{r.score}%</span>
+                  </div>
+                </td>
+                <td className="p-4 text-center">
+                  <Button variant="ghost" size="sm" dark={dark} icon={MoreHorizontal} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      <div className={`mt-6 p-5 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <HelpCircle size={16} className="text-blue-500" />
+          <div className={`text-sm font-semibold ${text}`}>Implementation notes</div>
+        </div>
+        <div className={`text-xs ${muted}`}>Top Lists queries bind to the selected role pair (or single-role IP mode) and the active coefficient preset.</div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Role Finder (g edition)
+// ============================================
+const RoleFinderScreen = ({ dark }) => {
+  const [formation, setFormation] = useState('4-2-3-1');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const missing = [
+    { slot: 'RB (WB-A)', need: 'No natural overlap runner', severity: 'high' },
+    { slot: 'DM (DLP-S)', need: 'Passing + positioning gap', severity: 'medium' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Role Finder</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Select tactic roles, see missing coverage, and open Player Search with filters pre-filled.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Search}>Find Targets</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-semibold ${text}`}>Tactic</h3>
+            <div className="flex gap-2">
+              {['4-2-3-1', '4-3-3', '3-4-3'].map((f) => (
+                <button key={f} onClick={() => setFormation(f)} className={`px-3 py-1.5 rounded-xl text-xs font-medium border ${border} ${formation === f ? 'bg-blue-500 text-white border-blue-500/30' : dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={`p-5 rounded-2xl border ${border} ${dark ? 'bg-emerald-500/5' : 'bg-emerald-50'} relative overflow-hidden`}>
+            <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+            <div className="relative grid grid-cols-5 gap-3">
+              {[...Array(11)].map((_, i) => (
+                <div key={i} className={`h-14 rounded-2xl ${dark ? 'bg-slate-900/40' : 'bg-white/70'} border ${border} flex items-center justify-center`}>
+                  <Target size={18} className="text-blue-500" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={`mt-4 text-xs ${muted}`}>Role suitability and slot model should match Squad Gap Analyzer (single source of truth).</div>
+        </Card>
+
+        <Card dark={dark} className="p-6">
+          <h3 className={`font-semibold ${text} mb-4`}>Missing roles</h3>
+          <div className="space-y-3">
+            {missing.map((m) => (
+              <div key={m.slot} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className="flex items-center justify-between">
+                  <div className={`text-sm font-semibold ${text}`}>{m.slot}</div>
+                  <Badge variant={m.severity === 'high' ? 'danger' : 'warning'}>{m.severity}</Badge>
+                </div>
+                <div className={`text-xs ${muted} mt-1`}>{m.need}</div>
+                <div className="mt-3 flex gap-2">
+                  <Button variant="secondary" size="sm" dark={dark} className="flex-1" icon={Search}>Find fits</Button>
+                  <Button variant="ghost" size="sm" dark={dark} icon={HelpCircle} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+
+// ============================================
+// Screen: Squad Gap Analyzer (g edition)
+// ============================================
+const SquadGapAnalyzerScreen = ({ dark }) => {
+  const [formation, setFormation] = useState('4-2-3-1');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const gaps = [
+    { id: 1, area: 'RB (WB-A)', issue: 'No natural overlap runner', severity: 'high', suggestion: 'Attacking Full-Back (A) profile' },
+    { id: 2, area: 'DM (DLP-D)', issue: 'Passing + positioning gap', severity: 'medium', suggestion: 'Deep-Lying Playmaker (D) profile' },
+    { id: 3, area: 'ST (PF-A)', issue: 'Press resistance / first touch', severity: 'low', suggestion: 'Pressing Forward (A) profile' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Squad Gap Analyzer</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>From tactic roles → coverage map → “open Player Search with filters pre-filled”.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Search}>Open Search</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 col-span-1">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className={`text-sm font-semibold ${text}`}>Tactic</div>
+              <div className={`text-xs ${muted}`}>Formation + role slots</div>
+            </div>
+            <Badge variant="primary">FM26</Badge>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <div className={`text-xs ${muted} mb-1`}>Formation</div>
+              <select
+                value={formation}
+                onChange={(e) => setFormation(e.target.value)}
+                className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900 text-slate-200' : 'bg-white text-slate-700'}`}
+              >
+                {['4-2-3-1', '4-3-3', '4-4-2', '3-4-2-1'].map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+              <div className={`text-xs ${muted} mb-2`}>Coverage (prototype)</div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { k: 'CB', v: 86 },
+                  { k: 'FB/WB', v: 62 },
+                  { k: 'DM/CM', v: 71 },
+                  { k: 'ST', v: 58 },
+                ].map((x) => (
+                  <div key={x.k} className="text-center">
+                    <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{x.k}</div>
+                    <div className={`text-lg font-bold ${x.v >= 75 ? 'text-emerald-400' : x.v >= 60 ? 'text-amber-400' : 'text-red-400'}`}>{x.v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-6 col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className={`text-sm font-semibold ${text}`}>Detected Gaps</div>
+              <div className={`text-xs ${muted}`}>Ranked by severity (role-fit + squad depth)</div>
+            </div>
+            <Button variant="secondary" size="sm" dark={dark} icon={Crown}>Auto-suggest</Button>
+          </div>
+
+          <div className="space-y-3">
+            {gaps.map((g) => (
+              <div key={g.id} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className={`font-semibold ${text}`}>{g.area} <span className={`text-xs ${muted} font-normal`}>• {g.issue}</span></div>
+                    <div className={`text-xs ${muted} mt-1`}>Suggested: <span className="text-blue-400 font-medium">{g.suggestion}</span></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={g.severity === 'high' ? 'error' : g.severity === 'medium' ? 'warning' : 'success'} size="xs">{g.severity}</Badge>
+                    <Button variant="secondary" size="sm" dark={dark} icon={Search}>Find</Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={`mt-6 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Info size={16} className="text-blue-500" />
+              <div className={`text-sm font-semibold ${text}`}>Implementation notes</div>
+            </div>
+            <div className={`text-xs ${muted}`}>Gap scoring reuses Rating Engine role pairs; output is a pre-filled search query + optional shortlist optimizer.</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Replacement Finder (g edition)
+// ============================================
+const ReplacementFinderScreen = ({ dark }) => {
+  const [outgoing, setOutgoing] = useState('RB – Starter');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const candidates = [
+    { name: 'Target A', club: 'Ajax', age: 21, fit: 88, fee: '€24M', availability: 'Interested' },
+    { name: 'Target B', club: 'RB Leipzig', age: 24, fit: 84, fee: '€36M', availability: 'Doubtful' },
+    { name: 'Target C', club: 'Villarreal', age: 20, fit: 82, fee: '€18M', availability: 'Very Interested' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Replacement Finder</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Pick an outgoing player → match by role-fit, age, budget, and availability.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Plus}>Add to Shortlist</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export</Button>
+        </div>
+      </div>
+
+      <Card dark={dark} className="p-5 mb-6">
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-1">
+            <div className={`text-xs ${muted} mb-1`}>Outgoing</div>
+            <select
+              value={outgoing}
+              onChange={(e) => setOutgoing(e.target.value)}
+              className={`w-full px-3 py-2 rounded-xl border ${border} ${dark ? 'bg-slate-900 text-slate-200' : 'bg-white text-slate-700'}`}
+            >
+              {['RB – Starter', 'DM – Rotation', 'ST – Backup'].map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <div className={`text-xs ${muted} mt-2`}>Auto-loads the matching Rating Engine preset + contract constraints.</div>
+          </div>
+
+          <div className="col-span-2 grid grid-cols-3 gap-3">
+            {[
+              { k: 'Budget', v: '€40M' },
+              { k: 'Age cap', v: '≤ 25' },
+              { k: 'Min fit', v: '≥ 80%' },
+            ].map((x) => (
+              <div key={x.k} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{x.k}</div>
+                <div className={`text-lg font-bold ${text}`}>{x.v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card dark={dark} className="overflow-hidden">
+        <table className="w-full">
+          <thead className={`${dark ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
+            <tr className={`text-xs ${muted} uppercase tracking-wider`}>
+              <th className="text-left p-4">Candidate</th>
+              <th className="text-left p-4">Club</th>
+              <th className="text-center p-4">Age</th>
+              <th className="text-center p-4">Fit</th>
+              <th className="text-center p-4">Fee</th>
+              <th className="text-center p-4">Signal</th>
+              <th className="text-center p-4 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {candidates.map((c) => (
+              <tr key={c.name} className={`border-b ${border} ${dark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}`}>
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar dark={dark} name={c.name} size="sm" />
+                    <div className={`font-medium ${text}`}>{c.name}</div>
+                  </div>
+                </td>
+                <td className={`p-4 ${muted}`}>{c.club}</td>
+                <td className={`p-4 text-center ${muted}`}>{c.age}</td>
+                <td className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-20"><ProgressBar value={c.fit} max={100} variant={c.fit >= 85 ? 'success' : 'warning'} size="sm" /></div>
+                    <span className={`text-xs ${c.fit >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>{c.fit}%</span>
+                  </div>
+                </td>
+                <td className={`p-4 text-center ${muted}`}>{c.fee}</td>
+                <td className="p-4 text-center">
+                  <Badge variant={c.availability.includes('Very') ? 'success' : c.availability === 'Interested' ? 'primary' : 'warning'} size="xs">{c.availability}</Badge>
+                </td>
+                <td className="p-4 text-center"><Button variant="ghost" size="sm" dark={dark} icon={MoreHorizontal} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Transfer Shortlist Optimizer (g edition)
+// ============================================
+const ShortlistOptimizerScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const picks = [
+    { role: 'RB (WB-A)', name: 'Target A', fit: 88, fee: '€24M', risk: 'low' },
+    { role: 'DM (DLP-D)', name: 'Target D', fit: 84, fee: '€18M', risk: 'medium' },
+    { role: 'ST (PF-A)', name: 'Target F', fit: 81, fee: '€12M', risk: 'low' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Transfer Shortlist Optimizer</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Optimize a shortlist against budget + squad gaps + risk profile.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Sparkles}>Run Optimize</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Save}>Save Plan</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 col-span-1">
+          <div className={`text-sm font-semibold ${text} mb-2`}>Constraints</div>
+          <div className="space-y-3">
+            {[
+              { k: 'Budget', v: '€60M' },
+              { k: 'Max squad risk', v: 'Medium' },
+              { k: 'Must fill', v: 'RB, DM' },
+            ].map((x) => (
+              <div key={x.k} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{x.k}</div>
+                <div className={`text-lg font-bold ${text}`}>{x.v}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-6 col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className={`text-sm font-semibold ${text}`}>Recommended Set</div>
+              <div className={`text-xs ${muted}`}>Max total fit under constraints</div>
+            </div>
+            <Badge variant="success">+12% coverage</Badge>
+          </div>
+
+          <div className="space-y-3">
+            {picks.map((p) => (
+              <div key={p.role} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className={`font-semibold ${text}`}>{p.role} <span className={`text-xs ${muted} font-normal`}>→ {p.name}</span></div>
+                    <div className={`text-xs ${muted} mt-1`}>Fee: {p.fee} • Risk: <span className={p.risk === 'low' ? 'text-emerald-400' : 'text-amber-400'}>{p.risk}</span></div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-xs ${muted}`}>Fit</div>
+                    <div className={`text-xl font-bold ${p.fit >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>{p.fit}%</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={`mt-6 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Info size={16} className="text-blue-500" />
+              <div className={`text-sm font-semibold ${text}`}>How it works (prototype)</div>
+            </div>
+            <div className={`text-xs ${muted}`}>Objective = maximize Role Fit + coverage delta; penalties for high fees, injury risk, and low interest.</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Deal Intelligence (g edition)
+// ============================================
+const DealIntelligenceScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const signals = [
+    { k: 'Asking vs value', v: '€32M vs €26M', tag: 'warning', note: 'Try bonuses / clauses' },
+    { k: 'Agent stance', v: 'Neutral', tag: 'primary', note: 'Offer playing time promise' },
+    { k: 'Club pressure', v: 'Needs sale (FFP)', tag: 'success', note: 'Negotiate late window' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Deal Intelligence</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Negotiation guidance using price, interest, clauses, and club context.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={DollarSign}>Open Negotiation</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Copy}>Copy Summary</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 col-span-1">
+          <div className={`text-sm font-semibold ${text} mb-2`}>Target snapshot</div>
+          <div className="space-y-3">
+            {[
+              { k: 'Player', v: 'Target A' },
+              { k: 'Role fit', v: '88%' },
+              { k: 'Interest', v: 'Interested' },
+              { k: 'Contract', v: '2y left' },
+            ].map((x) => (
+              <div key={x.k} className="flex items-center justify-between">
+                <span className={`text-sm ${muted}`}>{x.k}</span>
+                <span className={`text-sm ${text}`}>{x.v}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-6 col-span-2">
+          <div className={`text-sm font-semibold ${text} mb-4`}>Signals</div>
+          <div className="space-y-3">
+            {signals.map((s) => (
+              <div key={s.k} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className={`font-semibold ${text}`}>{s.k}</div>
+                    <div className={`text-xs ${muted} mt-1`}>{s.note}</div>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant={s.tag} size="xs">{s.v}</Badge>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={`mt-6 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <AlertCircle size={16} className="text-amber-500" />
+              <div className={`text-sm font-semibold ${text}`}>Recommended offer structure</div>
+            </div>
+            <div className={`text-xs ${muted}`}>Lower fixed fee, add appearance + team achievement bonuses, and include optional sell-on %.</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Contract & Clause Radar (g edition)
+// ============================================
+const ContractClauseRadarScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const alerts = [
+    { id: 1, name: 'Player X', type: 'Expiring', due: '6 months', severity: 'high', action: 'Renew or sell' },
+    { id: 2, name: 'Player Y', type: 'Release clause', due: '€18M active', severity: 'medium', action: 'Offer new deal' },
+    { id: 3, name: 'Player Z', type: 'Wage rise', due: 'After 20 apps', severity: 'low', action: 'Plan budget' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Contract & Clause Radar</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Monitor expiries, clauses, triggers, and generate action lists.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={FileText}>Generate Actions</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export</Button>
+        </div>
+      </div>
+
+      <Card dark={dark} className="overflow-hidden">
+        <table className="w-full">
+          <thead className={`${dark ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
+            <tr className={`text-xs ${muted} uppercase tracking-wider`}>
+              <th className="text-left p-4">Item</th>
+              <th className="text-left p-4">Type</th>
+              <th className="text-left p-4">Due</th>
+              <th className="text-center p-4">Severity</th>
+              <th className="text-left p-4">Suggested action</th>
+              <th className="text-center p-4 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {alerts.map((a) => (
+              <tr key={a.id} className={`border-b ${border} ${dark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}`}>
+                <td className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar dark={dark} name={a.name} size="sm" />
+                    <div className={`font-medium ${text}`}>{a.name}</div>
+                  </div>
+                </td>
+                <td className={`p-4 ${muted}`}>{a.type}</td>
+                <td className={`p-4 ${muted}`}>{a.due}</td>
+                <td className="p-4 text-center">
+                  <Badge variant={a.severity === 'high' ? 'error' : a.severity === 'medium' ? 'warning' : 'success'} size="xs">{a.severity}</Badge>
+                </td>
+                <td className={`p-4 ${muted}`}>{a.action}</td>
+                <td className="p-4 text-center"><Button variant="ghost" size="sm" dark={dark} icon={MoreHorizontal} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      <div className={`mt-6 p-5 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <Info size={16} className="text-blue-500" />
+          <div className={`text-sm font-semibold ${text}`}>Implementation notes</div>
+        </div>
+        <div className={`text-xs ${muted}`}>Radar reads saved presets + squad context to prioritize renewals and highlight clause-trigger risk.</div>
+      </div>
+    </div>
+  );
+};
+
+
+// ============================================
+// Screen: Radar Workspace (g edition)
+// ============================================
+const RadarScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const items = [
+    { type: 'Expiring', name: 'Winger A', club: 'Club X', badge: 'Fair fee', risk: 'low' },
+    { type: 'Release clause', name: 'DM B', club: 'Club Y', badge: 'Overpay risk', risk: 'high' },
+    { type: 'Bosman', name: 'CB C', club: 'Club Z', badge: 'Good value', risk: 'medium' },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Radar</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Opportunity inbox grouped by contract/market triggers with shortlist actions.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={RefreshCw}>Refresh</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Save}>Save preset</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 col-span-1">
+          <h3 className={`font-semibold ${text} mb-4`}>Filters</h3>
+          <div className="space-y-3">
+            {['Budget', 'Needs', 'Age', 'Position'].map((f) => (
+              <div key={f} className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-sm font-medium ${text}`}>{f}</div>
+                <div className={`text-xs ${muted}`}>Placeholder controls</div>
+              </div>
+            ))}
+          </div>
+          <div className={`mt-5 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+            <div className={`text-xs ${muted}`}>Use cached/incremental refresh; show progress + cancel for large databases.</div>
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-5 col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-semibold ${text}`}>Opportunities</h3>
+            <Badge variant="primary">{items.length} cards</Badge>
+          </div>
+          <div className="space-y-3">
+            {items.map((it, idx) => (
+              <div key={idx} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} flex items-center gap-4`}>
+                <div className={`w-10 h-10 rounded-xl ${dark ? 'bg-slate-800' : 'bg-slate-100'} flex items-center justify-center`}>
+                  <Eye size={18} className="text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <div className={`font-semibold ${text}`}>{it.name}</div>
+                  <div className={`text-xs ${muted}`}>{it.type} • {it.club}</div>
+                </div>
+                <Badge variant={it.risk === 'low' ? 'success' : it.risk === 'high' ? 'danger' : 'warning'}>{it.badge}</Badge>
+                <Button variant="secondary" size="sm" dark={dark} icon={UserPlus}>Shortlist</Button>
+                <Button variant="ghost" size="sm" dark={dark} icon={MoreHorizontal} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Transfer Plan Workspace (g edition)
+// ============================================
+const TransferPlanScreen = ({ dark }) => {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const start = () => {
+    setRunning(true);
+    setProgress(15);
+    const t = setInterval(() => {
+      setProgress((p) => {
+        const next = Math.min(100, p + 12);
+        if (next >= 100) {
+          clearInterval(t);
+          setRunning(false);
+        }
+        return next;
+      });
+    }, 450);
+  };
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Transfer Plan</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Build Plan A / Plan B bundles under constraints and export decisions.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export bundle</Button>
+          <Button variant="primary" size="md" icon={Play} onClick={start} disabled={running}>{running ? 'Optimizing...' : 'Run optimizer'}</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 col-span-1">
+          <h3 className={`font-semibold ${text} mb-4`}>Constraints</h3>
+          <div className="space-y-3">
+            {[
+              { label: 'Transfer budget', value: '€60M' },
+              { label: 'Wage budget', value: '€350k/w' },
+              { label: 'Age', value: '≤ 24' },
+            ].map((c) => (
+              <div key={c.label} className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className={`text-xs ${muted}`}>{c.label}</div>
+                <div className={`text-sm font-semibold ${text}`}>{c.value}</div>
+              </div>
+            ))}
+
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className={`text-sm font-semibold ${text}`}>Performance UX</div>
+                {running && <Badge variant="warning">Running</Badge>}
+              </div>
+              <ProgressBar value={progress} max={100} variant="primary" size="md" />
+              <div className={`text-xs ${muted} mt-2`}>Show progress + cancel; cache repeat results.</div>
+            </div>
+
+            {running && (
+              <Button variant="secondary" size="sm" dark={dark} icon={X} onClick={() => { setRunning(false); setProgress(0); }}>Cancel</Button>
+            )}
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-6 col-span-2">
+          <h3 className={`font-semibold ${text} mb-4`}>Bundles</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {['Plan A', 'Plan B'].map((plan) => (
+              <div key={plan} className={`p-5 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`text-sm font-semibold ${text}`}>{plan}</div>
+                  <Badge variant="primary">3 targets</Badge>
+                </div>
+                <div className={`text-xs ${muted} mb-3`}>Explainable output (gaps fixed, fit improvement, cost drivers).</div>
+                <div className="space-y-2">
+                  {['Target 1', 'Target 2', 'Target 3'].map((t) => (
+                    <div key={t} className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'} flex items-center justify-between`}>
+                      <div className={`text-sm ${text}`}>{t}</div>
+                      <Badge variant="success">Fit +</Badge>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button variant="secondary" size="sm" dark={dark} className="flex-1" icon={FileText}>Quick Card</Button>
+                  <Button variant="secondary" size="sm" dark={dark} className="flex-1" icon={FileText}>Full Dossier</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Preset Marketplace (g edition)
+// ============================================
+const PresetMarketplaceScreen = ({ dark }) => {
+  const [selected, setSelected] = useState('wonderkids_v26');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  const presets = [
+    { id: 'wonderkids_v26', name: 'Wonderkids (FM26)', type: 'Filters', compat: 'FM26', rating: 4.8 },
+    { id: 'rolefit_v26', name: 'Role Fit Column Set', type: 'Columns', compat: 'FM26', rating: 4.6 },
+    { id: 'bargains_v25', name: 'Bargains (FM25)', type: 'Filters', compat: 'FM25', rating: 4.2, warn: true },
+  ];
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Preset Marketplace</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Browse/import presets with preview, compatibility warnings, and safe application.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Upload}>Import file</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export my presets</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 col-span-1">
+          <h3 className={`font-semibold ${text} mb-4`}>Library</h3>
+          <div className="space-y-2">
+            {presets.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelected(p.id)}
+                className={`w-full text-left p-3 rounded-2xl border ${selected === p.id ? 'border-blue-500/40 bg-blue-500/10' : border} transition-all`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`font-medium ${text}`}>{p.name}</div>
+                  <div className="flex items-center gap-1">
+                    <Star size={14} className="text-amber-500" />
+                    <span className={`text-xs ${muted}`}>{p.rating.toFixed(1)}</span>
+                  </div>
+                </div>
+                <div className={`text-xs ${muted}`}>{p.type} • {p.compat}{p.warn ? ' • incompatible' : ''}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-5 col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-semibold ${text}`}>Preview</h3>
+            {presets.find(p => p.id === selected)?.warn ? <Badge variant="warning">Compatibility warning</Badge> : <Badge variant="success">Compatible</Badge>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+              <div className={`text-sm font-semibold ${text} mb-2`}>What it adds</div>
+              <ul className={`text-xs ${muted} space-y-1 list-disc ml-4`}>
+                <li>Filter conditions / columns / rating profiles</li>
+                <li>Default sorting + visible columns</li>
+                <li>Optional tags and notes template</li>
+              </ul>
+            </div>
+
+            <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
+              <div className={`text-sm font-semibold ${text} mb-2`}>Diff preview</div>
+              <div className={`text-xs ${muted}`}>Show a safe diff before applying (prototype placeholder).</div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-5">
+            <Button variant="secondary" size="md" dark={dark} icon={Copy}>Apply as copy</Button>
+            <Button variant="primary" size="md" icon={Check}>Apply</Button>
+          </div>
+
+          <div className={`mt-4 text-xs ${muted}`}>MVP: file import/export. vNext: online marketplace with ratings/verification.</div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Screen: Pro Reports Export (g edition)
+// ============================================
+const ProReportsScreen = ({ dark }) => {
+  const [template, setTemplate] = useState('quick');
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const border = dark ? 'border-slate-700/50' : 'border-slate-200';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-bold ${text}`}>Pro Reports Export</h1>
+            <Badge variant="gold" size="sm">g</Badge>
+          </div>
+          <p className={`${muted} text-sm mt-1`}>Export player/shortlist/plan dossiers with templates and preview.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export PDF</Button>
+          <Button variant="secondary" size="md" dark={dark} icon={Download}>Export HTML</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 col-span-1">
+          <h3 className={`font-semibold ${text} mb-4`}>Template</h3>
+          <div className="space-y-2">
+            {[
+              { id: 'quick', label: 'Quick Card', desc: 'Compact, scannable' },
+              { id: 'full', label: 'Full Dossier', desc: 'Complete scout report' },
+              { id: 'bundle', label: 'Plan Bundle', desc: 'Transfer plan pack + index' },
+            ].map((t) => (
+              <button key={t.id} onClick={() => setTemplate(t.id)} className={`w-full text-left p-3 rounded-2xl border ${template === t.id ? 'border-blue-500/40 bg-blue-500/10' : border} transition-all`}>
+                <div className={`font-medium ${text}`}>{t.label}</div>
+                <div className={`text-xs ${muted}`}>{t.desc}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card dark={dark} className="p-5 col-span-2">
+          <h3 className={`font-semibold ${text} mb-4`}>Preview</h3>
+          <div className={`p-5 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} min-h-[260px]`}>
+            <div className={`text-sm font-semibold ${text}`}>{template === 'quick' ? 'Quick Card' : template === 'full' ? 'Full Dossier' : 'Bundle Pack'}</div>
+            <div className={`text-xs ${muted} mt-2`}>Preview of included sections: Role/Position summary, Deal snapshot, narrative blocks (placeholder).</div>
+
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                <div className={`text-xs ${muted}`}>Sections</div>
+                <div className={`text-sm ${text}`}>Attributes • Roles • Deal</div>
+              </div>
+              <div className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                <div className={`text-xs ${muted}`}>Batch</div>
+                <div className={`text-sm ${text}`}>Export shortlist / plan A+B</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-5">
+            <Button variant="secondary" size="md" dark={dark} icon={CheckSquare}>Select players</Button>
+            <Button variant="primary" size="md" icon={Download}>Export</Button>
+          </div>
+
+          <div className={`mt-4 text-xs ${muted}`}>Formats: PDF + HTML. Batch exports should include a combined pack + index.</div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+
+// ============================================
+// Screen: Loading States
+// ============================================
+const LoadingStatesScreen = ({ dark }) => {
+  const text = dark ? 'text-white' : 'text-slate-900';
+  const muted = dark ? 'text-slate-400' : 'text-slate-500';
+  const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  return (
+    <div className={`flex-1 p-8 overflow-auto ${bg}`}>
+      <h1 className={`text-2xl font-bold ${text} mb-6`}>Loading States & Feedback</h1>
+      <div className="grid grid-cols-2 gap-6">
+        <Card dark={dark} className="p-6">
+          <h3 className={`font-semibold ${text} mb-4`}>Game Loading Progress</h3>
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl ${dark ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center`}>
+              <Loader2 size={24} className="text-blue-500 animate-spin" />
+            </div>
+            <div className="flex-1">
+              <div className={`text-sm font-medium ${text}`}>Loading players...</div>
+              <ProgressBar value={67} max={100} variant="primary" size="md" />
+            </div>
+            <span className={`text-sm ${muted}`}>67%</span>
+          </div>
+        </Card>
+        <Card dark={dark} className="p-6">
+          <h3 className={`font-semibold ${text} mb-4`}>Toast Notifications</h3>
+          <div className="space-y-3">
+            <Toast variant="success" title="Save loaded successfully" message="251,847 players imported" dark={dark} />
+            <Toast variant="warning" title="Sync required" message="FM data has changed" action="Sync" dark={dark} />
+            <Toast variant="error" title="Export failed" message="Check permissions" action="Retry" dark={dark} />
+          </div>
+        </Card>
+        <Card dark={dark} className="p-6">
+          <h3 className={`font-semibold ${text} mb-4`}>Button States</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-4"><Button variant="primary" size="md" icon={Download}>Export</Button><span className={`text-xs ${muted}`}>Default</span></div>
+            <div className="flex items-center gap-4"><Button variant="primary" size="md" loading>Exporting...</Button><span className={`text-xs ${muted}`}>Loading</span></div>
+            <div className="flex items-center gap-4"><Button variant="success" size="md" icon={CheckCircle2}>Exported!</Button><span className={`text-xs ${muted}`}>Success</span></div>
+            <div className="flex items-center gap-4"><Button variant="primary" size="md" icon={Download} disabled>Export</Button><span className={`text-xs ${muted}`}>Disabled</span></div>
+          </div>
+        </Card>
+        <Card dark={dark} className="p-6">
+          <h3 className={`font-semibold ${text} mb-4`}>Skeleton Loading</h3>
+          <div className="flex items-center gap-4 mb-4">
+            <Skeleton className="w-12 h-12 rounded-xl" dark={dark} />
+            <div className="flex-1 space-y-2"><Skeleton className="h-4 w-32" dark={dark} /><Skeleton className="h-3 w-48" dark={dark} /></div>
+            <Skeleton className="h-8 w-20 rounded-lg" dark={dark} />
+          </div>
+          <div className="flex gap-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-8 flex-1 rounded-lg" dark={dark} />)}</div>
+        </Card>
+        <Card dark={dark} className="p-6 col-span-2">
+          <h3 className={`font-semibold ${text} mb-4`}>Empty States</h3>
+          <div className="grid grid-cols-3 gap-6">
+            <EmptyState icon={Search} title="No results found" description="Try adjusting your filters" action={<Button variant="secondary" size="sm" dark={dark}>Clear Filters</Button>} dark={dark} />
+            <EmptyState icon={List} title="No shortlists yet" description="Create your first shortlist" action={<Button variant="primary" size="sm" icon={Plus}>Create</Button>} dark={dark} />
+            <EmptyState icon={History} title="No history points" description="Track player development" action={<Button variant="secondary" size="sm" dark={dark} icon={Plus}>Create</Button>} dark={dark} />
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// Main App Component
+// ============================================
+export default function FMGenieScoutPrototype() {
+  const [darkMode, setDarkMode] = useState(true);
+  const [activeScreen, setActiveScreen] = useState('all');
+  const [gameLoaded, setGameLoaded] = useState(false);
+
+  // Shared app state (Phase 1): Search → Profile navigation + shared player dataset
+  const [players] = useState(() => SAMPLE_PLAYERS.map(enrichPlayerForAttributeGroups));
+  const [selectedPlayerId, setSelectedPlayerId] = useState(SAMPLE_PLAYERS?.[0]?.id || null);
+
+
+  // Shared interactive state (Phase 2): profile actions + realism
+  const [shortlists] = useState([
+    { id: 'fm-shortlist', name: 'FM Shortlist', color: 'blue', synced: true },
+    { id: 'targets', name: 'Targets', color: 'emerald' },
+    { id: 'watchlist', name: 'Watchlist', color: 'amber' },
+  ]);
+
+  const [shortlistEntries, setShortlistEntries] = useState(() => ({
+    'fm-shortlist': {
+      p_wze: { tag: 'target', note: 'Starter-ready DM', addedAt: '2025-12-01T10:00:00Z' },
+    },
+    watchlist: {
+      p_yamal: { tag: 'watchlist', note: 'Monitor minutes', addedAt: '2025-12-05T10:00:00Z' },
+    },
+    targets: {},
+  }));
+
+  const [comparisonIds, setComparisonIds] = useState(['p_wze', 'p_mainoo']);
+  const [favorites, setFavorites] = useState({ p_wze: true });
+
+  const [playerReports, setPlayerReports] = useState(() => ({
+    p_wze: {
+      recommendation: 'shortlist',
+      confidence: 70,
+      ratingStars: 4,
+      tags: ['Starter-ready', 'Tactical fit'],
+      pros: ['Composed under pressure', 'High work rate'],
+      cons: ['Needs more attacking output'],
+      note: 'Early assessment: fits high-tempo midfield rotations. Recheck in 2 months.',
+      updatedAt: '2025-12-10T10:00:00Z',
+    },
+  }));
+
+  const savePlayerReport = (playerId, report) => {
+    setPlayerReports((prev) => ({ ...(prev || {}), [playerId]: report }));
+  };
+
+
+  const [historyPoints, setHistoryPoints] = useState(() => ([
+    { id: makeId(), playerId: 'p_yamal', dateISO: '2025-07-01', label: 'Pre-season', ca: 128, pa: 176 },
+    { id: makeId(), playerId: 'p_yamal', dateISO: '2026-01-01', label: 'Mid-season', ca: 136, pa: 176 },
+    { id: makeId(), playerId: 'p_yamal', dateISO: '2026-07-01', label: 'Season end', ca: 142, pa: 176 },
+  ]));
+
+  const [toasts, setToasts] = useState([]);
+
+  const pushToast = ({ variant = 'info', title, message }) => {
+    const id = makeId();
+    const t = { id, variant, title, message };
+    setToasts((prev) => [t, ...prev].slice(0, 4));
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((x) => x.id !== id));
+    }, 2600);
+  };
+
+  const dismissToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
+  const isShortlisted = (playerId) => Object.values(shortlistEntries || {}).some((m) => !!m?.[playerId]);
+  const isFavorite = (playerId) => !!favorites?.[playerId];
+  const isCompared = (playerId) => comparisonIds.includes(playerId);
+
+  const addToShortlist = (playerId, listId, { tag, note } = {}) => {
+    setShortlistEntries((prev) => {
+      const next = { ...(prev || {}) };
+      const list = { ...(next[listId] || {}) };
+      list[playerId] = { tag: tag || 'target', note: note || '', addedAt: new Date().toISOString() };
+      next[listId] = list;
+      return next;
+    });
+  };
+
+  const removeFromShortlist = (playerId, listId) => {
+    setShortlistEntries((prev) => {
+      const next = { ...(prev || {}) };
+      const list = { ...(next[listId] || {}) };
+      delete list[playerId];
+      next[listId] = list;
+      return next;
+    });
+  };
+
+  const toggleCompare = (playerId) => {
+    setComparisonIds((prev) => {
+      const exists = prev.includes(playerId);
+      if (exists) return prev.filter((id) => id !== playerId);
+      if (prev.length >= 4) {
+        pushToast({ variant: 'warning', title: 'Compare limit', message: 'Maximum 4 players in compare (prototype).' });
+        return prev;
+      }
+      return [...prev, playerId];
+    });
+  };
+
+  const toggleFavourite = (playerId) => {
+    setFavorites((prev) => {
+      const next = { ...(prev || {}) };
+      if (next[playerId]) delete next[playerId];
+      else next[playerId] = true;
+      return next;
+    });
+  };
+
+  const createHistoryPoint = (playerId, { label } = {}) => {
+    const p = players.find((x) => x.id === playerId);
+    if (!p) return;
+    setHistoryPoints((prev) => ([
+      ...prev,
+      {
+        id: makeId(),
+        playerId,
+        dateISO: new Date().toISOString(),
+        label: label || 'Manual snapshot',
+        ca: p.ca,
+        pa: p.pa,
+      }
+    ]));
+  };
+
+  const removeHistoryPoint = (historyId) => setHistoryPoints((prev) => prev.filter((x) => x.id !== historyId));
+
+
+  const screens = [
+    { id: 'dashboard', label: 'Dashboard', component: DashboardScreen },
+    { id: 'players', label: 'Search & Filters', component: PlayerSearchScreen },
+    { id: 'profile', label: 'Player Profile', component: PlayerProfileScreen },
+    { id: 'history', label: 'History Points', component: HistoryPointsScreen },
+    { id: 'ratings', label: 'Rating Engine', component: RatingDesignerScreen },
+    { id: 'staff', label: 'Staff', component: StaffInterfaceScreen },
+    { id: 'clubs', label: 'Club Profile', component: ClubInterfaceScreen },
+    { id: 'shortlists', label: 'Shortlists', component: ShortlistScreen },
+    { id: 'comparison', label: 'Comparison', component: ComparisonScreen },
+
+    // g Edition (premium)
+    { id: 'toplists', label: 'Top Lists (g)', component: TopListsScreen },
+    { id: 'squadgap', label: 'Squad Gap Analyzer (g)', component: SquadGapAnalyzerScreen },
+    { id: 'replacement', label: 'Replacement Finder (g)', component: ReplacementFinderScreen },
+    { id: 'shortlistopt', label: 'Shortlist Optimizer (g)', component: ShortlistOptimizerScreen },
+    { id: 'dealintel', label: 'Deal Intelligence (g)', component: DealIntelligenceScreen },
+    { id: 'contractradar', label: 'Contract & Clause Radar (g)', component: ContractClauseRadarScreen },
+    { id: 'rolefinder', label: 'Role Finder (g)', component: RoleFinderScreen },
+    { id: 'radar', label: 'Radar (g)', component: RadarScreen },
+    { id: 'transferplan', label: 'Transfer Plan (g)', component: TransferPlanScreen },
+    { id: 'presetmarket', label: 'Preset Marketplace (g)', component: PresetMarketplaceScreen },
+    { id: 'reports', label: 'Pro Reports (g)', component: ProReportsScreen },
+
+    { id: 'loading', label: 'Loading & Feedback', component: LoadingStatesScreen },
+  ];
+
+  const bg = darkMode ? 'bg-slate-950' : 'bg-slate-100';
+  const text = darkMode ? 'text-white' : 'text-slate-900';
+  const muted = darkMode ? 'text-slate-400' : 'text-slate-500';
+
+  const renderScreen = (screenId) => {
+    const screen = screens.find(s => s.id === screenId);
+    if (!screen) return null;
+    const ScreenComponent = screen.component;
+
+    if (screenId === 'players') {
+      return (
+        <WireframeContainer key={screenId} title={`Screen: ${screen.label}`} dark={darkMode}>
+          <div className={`rounded-2xl overflow-hidden flex ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`} style={{ height: 600 }}>
+            <Sidebar dark={darkMode} collapsed={true} activeNav={screenId} gameLoaded={true} />
+            <div className="flex-1 flex flex-col">
+              <ScreenComponent
+                dark={darkMode}
+                gameLoaded={true}
+                players={players}
+                isShortlisted={isShortlisted}
+                isFavorite={isFavorite}
+                isCompared={isCompared}
+                onSelectPlayer={(id) => {
+                  setSelectedPlayerId(id);
+                  setActiveScreen('profile');
+                }}
+              />
+            </div>
+          </div>
+        </WireframeContainer>
+      );
+    }
+
+    if (screenId === 'profile') {
+      const selectedPlayer = players.find(p => p.id === selectedPlayerId) || players[0] || null;
+      return (
+        <WireframeContainer key={screenId} title={`Screen: ${screen.label}`} description="Player profile - NO overlay backdrop" dark={darkMode}>
+          <div className={`rounded-2xl overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`} style={{ height: 650 }}>
+            <ScreenComponent
+              dark={darkMode}
+              player={selectedPlayer}
+              onBack={() => setActiveScreen('players')}
+              shortlists={shortlists}
+              shortlistEntries={shortlistEntries}
+              onAddToShortlist={addToShortlist}
+              onRemoveFromShortlist={removeFromShortlist}
+              comparisonIds={comparisonIds}
+              onToggleCompare={toggleCompare}
+              onCreateHistoryPoint={createHistoryPoint}
+              isFavorite={isFavorite}
+              onToggleFavorite={toggleFavourite}
+              playerReports={playerReports}
+              onSavePlayerReport={savePlayerReport}
+              pushToast={pushToast}
+            />
+          </div>
+        </WireframeContainer>
+      );
+    }
+
+
+    if (screenId === 'shortlists') {
+      return (
+        <WireframeContainer title="Shortlists" description="State-driven shortlists (updated from Player Profile actions)." dark={darkMode}>
+          <div className="h-[760px] flex bg-slate-950 relative">
+            <ScreenComponent
+              dark={darkMode}
+              players={players}
+              shortlists={shortlists}
+              shortlistEntries={shortlistEntries}
+              onRemoveFromShortlist={removeFromShortlist}
+              onSelectPlayer={(id) => {
+                setSelectedPlayerId(id);
+                setActiveScreen('profile');
+              }}
+              pushToast={pushToast}
+            />
+          </div>
+        </WireframeContainer>
+      );
+    }
+
+    if (screenId === 'comparison') {
+      return (
+        <WireframeContainer title="Comparison" description="State-driven compare list (add/remove from Player Profile)." dark={darkMode}>
+          <div className="h-[760px] flex bg-slate-950 relative">
+            <ScreenComponent
+              dark={darkMode}
+              players={players}
+              comparisonIds={comparisonIds}
+              onToggleCompare={toggleCompare}
+              onSelectPlayer={(id) => {
+                setSelectedPlayerId(id);
+                setActiveScreen('profile');
+              }}
+            />
+          </div>
+        </WireframeContainer>
+      );
+    }
+
+    if (screenId === 'history') {
+      return (
+        <WireframeContainer title="History Points" description="State-driven snapshots created from Player Profile." dark={darkMode}>
+          <div className="h-[760px] flex bg-slate-950 relative">
+            <ScreenComponent
+              dark={darkMode}
+              players={players}
+              historyPoints={historyPoints}
+              defaultPlayerId={selectedPlayerId}
+              onRemoveHistoryPoint={removeHistoryPoint}
+              pushToast={pushToast}
+            />
+          </div>
+        </WireframeContainer>
+      );
+    }
+
+    if (screenId === 'dashboard') {
+      return (
+        <WireframeContainer key={screenId} title={`Screen: ${screen.label}`} description="Initial landing with game status" dark={darkMode}>
+          <div className={`rounded-2xl overflow-hidden flex ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`} style={{ height: 600 }}>
+            <Sidebar dark={darkMode} collapsed={false} activeNav="dashboard" gameLoaded={gameLoaded} />
+            <div className="flex-1 flex flex-col">
+              <Header dark={darkMode} gameLoaded={gameLoaded} />
+              <ScreenComponent dark={darkMode} gameLoaded={gameLoaded} onLoadGame={() => setGameLoaded(!gameLoaded)} />
+            </div>
+          </div>
+        </WireframeContainer>
+      );
+    }
+
+    return (
+      <WireframeContainer key={screenId} title={`Screen: ${screen.label}`} dark={darkMode}>
+        <div className={`rounded-2xl overflow-hidden flex ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`} style={{ height: 600 }}>
+          <Sidebar dark={darkMode} collapsed={true} activeNav={screenId} gameLoaded={true} />
+          <div className="flex-1 flex flex-col">
+            <ScreenComponent dark={darkMode} gameLoaded={true} />
+          </div>
+        </div>
+      </WireframeContainer>
+    );
+  };
+
+  return (
+    <div className={`min-h-screen ${bg} p-8`}>
+      <div className="max-w-7xl mx-auto mb-10">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Sparkles className="text-white" size={24} />
+              </div>
+              <div>
+                <h1 className={`text-3xl font-bold ${text}`}>FM Genie Scout</h1>
+                <p className={muted}>Complete UI/UX Prototype</p>
+              </div>
+            </div>
+            <p className={`${muted} mt-4 max-w-2xl text-sm`}>Interactive prototype with all screens and components. Toggle themes and explore individual screens.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant={gameLoaded ? 'success' : 'secondary'} icon={gameLoaded ? CheckCircle2 : Play} onClick={() => setGameLoaded(!gameLoaded)} dark={darkMode}>
+              {gameLoaded ? 'Game Loaded' : 'Simulate Load'}
+            </Button>
+            <Button variant="secondary" icon={darkMode ? Sun : Moon} onClick={() => setDarkMode(!darkMode)} dark={darkMode}>
+              {darkMode ? 'Light' : 'Dark'} Mode
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-8 flex-wrap">
+          <button onClick={() => setActiveScreen('all')} className={`px-4 py-2 rounded-xl text-sm font-medium ${activeScreen === 'all' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : `${darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50 shadow-sm'}`}`}>
+            All Screens
+          </button>
+          {screens.map(screen => (
+            <button key={screen.id} onClick={() => setActiveScreen(screen.id)} className={`px-4 py-2 rounded-xl text-sm font-medium ${activeScreen === screen.id ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : `${darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50 shadow-sm'}`}`}>
+              {screen.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto">
+        {activeScreen === 'all' ? screens.map(screen => renderScreen(screen.id)) : renderScreen(activeScreen)}
+      </div>
+
+      <div className={`max-w-7xl mx-auto mt-12 p-6 rounded-2xl ${darkMode ? 'bg-slate-800/50' : 'bg-white'} border ${darkMode ? 'border-slate-700/50' : 'border-slate-200'}`}>
+        <h3 className={`font-semibold mb-4 ${text}`}>Design System Components</h3>
+        <div className="grid grid-cols-6 gap-4">
+          {[
+            { icon: Layout, title: 'Layouts', count: '4' },
+            { icon: Grid, title: 'Cards', count: '8' },
+            { icon: Sliders, title: 'Inputs', count: '12' },
+            { icon: Bell, title: 'Feedback', count: '6' },
+            { icon: Table, title: 'Tables', count: '3' },
+            { icon: BarChart3, title: 'Charts', count: '5' },
+          ].map((item, i) => (
+            <div key={i} className="text-center">
+              <div className={`w-10 h-10 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-slate-100'} flex items-center justify-center mx-auto mb-2`}>
+                <item.icon size={20} className="text-blue-500" />
+              </div>
+              <h4 className={`font-medium ${text} text-sm`}>{item.title}</h4>
+              <p className={`text-xs ${muted}`}>{item.count} variants</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} dark={darkMode} />
+    </div>
+  );
+}
