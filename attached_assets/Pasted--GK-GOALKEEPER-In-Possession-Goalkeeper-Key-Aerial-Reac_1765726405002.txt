@@ -1,0 +1,1178 @@
+[GK] GOALKEEPER
+
+In Possession
+
+Goalkeeper
+Key:
+- Aerial Reach
+- Command of Area
+- Communication
+- Handling
+- Reflexes
+- Agility
+- Concentration
+- Positioning
+
+Preferred:
+- Kicking
+- One on Ones
+- Throwing
+- Anticipation
+- Decisions
+
+Unnecessary:
+- Eccentricity
+
+
+Ball-Playing Goalkeeper
+Key:
+- Aerial Reach
+- Command of Area
+- Communication
+- Handling
+- Kicking
+- Reflexes
+- Agility
+- Concentration
+- Positioning
+
+Preferred:
+- Eccentricity
+- One on Ones
+- Throwing
+- Anticipation
+- Composure
+- Decisions
+- Passing
+
+
+No-Nonsense Goalkeeper
+Key:
+- Aerial Reach
+- Command of Area
+- Communication
+- Handling
+- Reflexes
+- Agility
+- Concentration
+- Positioning
+
+Preferred:
+- One on Ones
+- Anticipation
+- Decisions
+
+Unnecessary:
+- Eccentricity
+- Passing
+
+
+Out of Possession
+
+Line-Holding Keeper
+Key:
+- Positioning
+- Concentration
+
+
+Sweeper Keeper
+Key:
+- Rushing Out
+- Anticipation
+- Decisions
+
+
+
+[D] Defender Centre
+
+In Possession
+
+Centre-Back
+Key:
+- Heading
+- Marking
+- Tackling
+- Anticipation
+- Positioning
+- Jumping
+- Strength
+
+Preferred:
+- Aggression
+- Bravery
+- Composure
+- Concentration
+- Decisions
+- Pace
+
+Unnecessary:
+- Passing
+
+
+Ball-Playing Centre-Back
+Key:
+- Heading
+- Marking
+- Passing
+- Tackling
+- Anticipation
+- Composure
+- Positioning
+- Jumping
+- Strength
+
+Preferred:
+- First Touch
+- Technique
+- Aggression
+- Bravery
+- Concentration
+- Decisions
+- Vision
+- Pace
+
+
+No-Nonsense Centre-Back
+Key:
+- Heading
+- Marking
+- Tackling
+- Anticipation
+- Positioning
+- Jumping
+- Strength
+
+Preferred:
+- Aggression
+- Bravery
+- Concentration
+- Pace
+
+Unnecessary:
+- Passing
+- Composure
+
+
+Wide Centre-Back
+Key:
+- Heading
+- Marking
+- Tackling
+- Anticipation
+- Positioning
+- Jumping
+- Strength
+
+Preferred:
+- Dribbling
+- Aggression
+- Bravery
+- Composure
+- Concentration
+- Decisions
+- Work Rate
+- Acceleration
+- Agility
+- Pace
+- Stamina
+
+Unnecessary:
+- Passing
+
+
+Advanced Centre-Back
+Key:
+- Heading
+- Marking
+- Passing
+- Tackling
+- Technique
+- Anticipation
+- Composure
+- Decisions
+- Positioning
+- Team Work
+- Jumping
+- Strength
+
+Preferred:
+- Dribbling
+- First Touch
+- Aggression
+- Bravery
+- Concentration
+- Vision
+- Pace
+- Stamina
+
+
+Overlapping Centre-Back
+Key:
+- Crossing
+- Heading
+- Marking
+- Tackling
+- Anticipation
+- Work Rate
+- Jumping
+- Pace
+- Stamina
+- Strength
+
+Preferred:
+- Dribbling
+- Technique
+- Aggression
+- Bravery
+- Composure
+- Concentration
+- Decisions
+- Off the Ball
+- Positioning
+- Acceleration
+- Agility
+
+
+Out of Possession
+
+Covering Centre-Back
+Key:
+- Anticipation
+- Pace
+- Marking
+
+
+Stopping Centre-Back
+Key:
+- Aggression
+- Tackling
+- Strength
+
+
+Covering Wide Centre-Back
+Key:
+- Anticipation
+- Pace
+- Marking
+
+
+Stopping Wide Centre-Back
+Key:
+- Aggression
+- Tackling
+- Strength
+
+
+
+[D] Defender Right/ Left
+
+In Possession
+
+Full-Back
+Key:
+- Marking
+- Tackling
+- Anticipation
+- Concentration
+- Positioning
+- Team Work
+- Acceleration
+
+Preferred:
+- Crossing
+- Dribbling
+- Passing
+- Technique
+- Decisions
+- Work Rate
+- Agility
+- Pace
+- Stamina
+
+
+Inside Full-Back
+Key:
+- Heading
+- Marking
+- Tackling
+- Anticipation
+- Positioning
+- Strength
+
+Preferred:
+- Dribbling
+- Aggression
+- Bravery
+- Composure
+- Concentration
+- Decisions
+- Work Rate
+- Acceleration
+- Agility
+- Jumping
+- Pace
+- Stamina
+
+
+Out of Possession
+
+Holding Full-Back
+Key:
+- Positioning
+- Concentration
+- Marking
+
+
+Pressing Full-Back
+Key:
+- Aggression
+- Work Rate
+- Anticipation
+
+
+
+[D/ WB] Defender/ Wing-Back (Right/ Left)
+
+In Possession
+
+Inside Wing-Back
+Key:
+- Passing
+- Tackling
+- Anticipation
+- Composure
+- Decisions
+- Positioning
+- Team Work
+- Acceleration
+
+Preferred:
+- First Touch
+- Marking
+- Technique
+- Concentration
+- Work Rate
+- Agility
+- Pace
+- Stamina
+
+
+Playmaking Wing-Back
+Key:
+- First Touch
+- Passing
+- Tackling
+- Technique
+- Composure
+- Decisions
+- Positioning
+- Team Work
+- Vision
+- Acceleration
+
+Preferred:
+- Crossing
+- Dribbling
+- Marking
+- Anticipation
+- Concentration
+- Off the Ball
+- Positioning
+- Work Rate
+- Agility
+- Pace
+- Stamina
+
+
+Wing-Back
+Key:
+- Crossing
+- Marking
+- Tackling
+- Team Work
+- Work Rate
+- Acceleration
+- Pace
+- Stamina
+
+Preferred:
+- Dribbling
+- First Touch
+- Passing
+- Technique
+- Anticipation
+- Concentration
+- Decisions
+- Off the Ball
+- Positioning
+- Agility
+- Balance
+
+
+
+[WB] Wing-Back (Right/ Left)
+
+In Possession
+
+Advanced Wing-Back
+Key:
+- Crossing
+- Dribbling
+- Technique
+- Off the Ball
+- Team Work
+- Work Rate
+- Acceleration
+- Agility
+- Pace
+- Stamina
+
+Preferred:
+- First Touch
+- Marking
+- Passing
+- Tackling
+- Anticipation
+- Decisions
+- Flair
+- Positioning
+- Balance
+
+
+Out of Possession
+
+Holding Wing-Back
+Key:
+- Positioning
+- Concentration
+- Marking
+
+
+Pressing Wing-Back
+Key:
+- Aggression
+- Work Rate
+- Anticipation
+
+
+
+[DM] Defensive Midfielder
+
+In Possession
+
+Defensive Midfielder
+Key:
+- Tackling
+- Anticipation
+- Concentration
+- Positioning
+- Team Work
+
+Preferred:
+- First Touch
+- Marking
+- Passing
+- Aggression
+- Composure
+- Decisions
+- Work Rate
+- Stamina
+- Strength
+
+
+Box-to-Box Midfielder
+Key:
+- Passing
+- Tackling
+- Off the Ball
+- Team Work
+- Work Rate
+- Stamina
+
+Preferred:
+- Dribbling
+- Finishing
+- First Touch
+- Long Shots
+- Technique
+- Aggression
+- Anticipation
+- Composure
+- Decisions
+- Positioning
+- Acceleration
+- Balance
+- Pace
+- Strength
+
+
+Box-to-Box Playmaker
+Key:
+- First Touch
+- Passing
+- Technique
+- Composure
+- Decisions
+- Off the Ball
+- Team Work
+- Vision
+- Work Rate
+- Stamina
+
+Preferred:
+- Dribbling
+- Marking
+- Tackling
+- Anticipation
+- Positioning
+- Acceleration
+- Agility
+- Balance
+- Pace
+
+
+Deep-Lying Playmaker
+Key:
+- First Touch
+- Passing
+- Technique
+- Composure
+- Decisions
+- Off the Ball
+- Team Work
+- Vision
+
+Preferred:
+- Marking
+- Tackling
+- Anticipation
+- Concentration
+- Off the Ball
+- Positioning
+- Work Rate
+- Balance
+- Stamina
+
+
+Half-Back
+Key:
+- Heading
+- Marking
+- Tackling
+- Anticipation
+- Concentration
+- Positioning
+- Team Work
+- Jumping
+- Strength
+
+Preferred:
+- First Touch
+- Passing
+- Aggression
+- Bravery
+- Composure
+- Decisions
+- Work Rate
+- Stamina
+
+
+Out of Possession
+
+Dropping Defensive Midfielder
+Key:
+- Positioning
+- Decisions
+- Anticipation
+
+
+Pressing Defensive Midfielder
+Key:
+- Aggression
+- Work Rate
+- Anticipation
+
+
+Screening Defensive Midfielder
+Key:
+- Positioning
+- Concentration
+- Marking
+
+
+Wide Covering Defensive Midfielder
+Key:
+- Anticipation
+- Pace
+- Work Rate
+
+
+
+[M] Midfielder (Centre)
+
+In Possession
+
+Central Midfielder
+Key:
+- First Touch
+- Passing
+- Tackling
+- Decisions
+- Team Work
+
+Preferred:
+- Technique
+- Anticipation
+- Composure
+- Concentration
+- Off the Ball
+- Positioning
+- Vision
+- Work Rate
+- Stamina
+
+
+Advanced Playmaker
+Key:
+- First Touch
+- Passing
+- Technique
+- Composure
+- Decisions
+- Off the Ball
+- Team Work
+- Vision
+
+Preferred:
+- Crossing
+- Dribbling
+- Anticipation
+- Flair
+- Acceleration
+- Agility
+
+
+Midfield Playmaker
+Key:
+- First Touch
+- Passing
+- Technique
+- Composure
+- Decisions
+- Off the Ball
+- Team Work
+- Vision
+
+Preferred:
+- Dribbling
+- Tackling
+- Anticipation
+- Flair
+- Positioning
+- Work Rate
+- Agility
+- Stamina
+
+
+Wide Central Midfielder
+Key:
+- First Touch
+- Passing
+- Tackling
+- Decisions
+- Team Work
+
+Preferred:
+- Crossing
+- Dribbling
+- Technique
+- Anticipation
+- Composure
+- Concentration
+- Off the Ball
+- Positioning
+- Vision
+- Work Rate
+- Agility
+- Stamina
+
+
+Out of Possession
+
+Pressing Central Midfielder
+Key:
+- Aggression
+- Work Rate
+- Anticipation
+
+
+Screening Central Midfielder
+Key:
+- Positioning
+- Concentration
+- Marking
+
+
+Wide Covering Central Midfielder
+Key:
+- Anticipation
+- Pace
+- Work Rate
+
+
+
+[M] Midfielder (Right/ Left)
+
+In Possession
+
+Wide Midfielder
+Key:
+- Crossing
+- Passing
+- Technique
+- Team Work
+- Work Rate
+- Pace
+- Stamina
+
+Preferred:
+- Dribbling
+- First Touch
+- Anticipation
+- Composure
+- Off the Ball
+- Vision
+- Acceleration
+- Agility
+
+
+Out of Possession
+
+Tracking Wide Midfielder
+Key:
+- Marking
+- Work Rate
+- Stamina
+
+
+Wide Outlet Wide Midfielder
+Key:
+- Off the Ball
+- Pace
+- Anticipation
+
+
+
+[M/ AM] Midfielder/ Attacking Midfielder (Right/ Left)
+
+In Possession
+
+Inside Winger
+Key:
+- Dribbling
+- First Touch
+- Technique
+- Composure
+- Team Work
+- Acceleration
+- Agility
+
+Preferred:
+- Crossing
+- Long Shots
+- Passing
+- Anticipation
+- Flair
+- Off the Ball
+- Vision
+- Work Rate
+- Balance
+- Pace
+- Stamina
+
+
+Playmaking Winger
+Key:
+- Crossing
+- Dribbling
+- First Touch
+- Passing
+- Technique
+- Composure
+- Decisions
+- Off the Ball
+- Team Work
+- Vision
+- Acceleration
+
+Preferred:
+- Anticipation
+- Flair
+- Work Rate
+- Agility
+- Pace
+- Stamina
+
+
+Winger
+Key:
+- Crossing
+- Dribbling
+- Technique
+- Team Work
+- Acceleration
+- Agility
+- Pace
+
+Preferred:
+- First Touch
+- Passing
+- Anticipation
+- Flair
+- Off the Ball
+- Work Rate
+- Balance
+- Stamina
+
+
+
+[M/ AM] Midfielder/ Attacking Midfielder (Centre)
+
+In Possession
+
+Attacking Midfielder
+Key:
+- First Touch
+- Long Shots
+- Passing
+- Technique
+- Composure
+- Flair
+- Off the Ball
+
+Preferred:
+- Crossing
+- Dribbling
+- Finishing
+- Anticipation
+- Decisions
+- Vision
+- Acceleration
+- Agility
+
+
+
+[AM] Attacking Midfielder (Centre)
+
+In Possession
+
+Channel Midfielder
+Key:
+- Crossing
+- First Touch
+- Passing
+- Technique
+- Composure
+- Off the Ball
+- Work Rate
+- Acceleration
+
+Preferred:
+- Dribbling
+- Long Shots
+- Anticipation
+- Decisions
+- Flair
+- Vision
+- Agility
+- Pace
+- Stamina
+
+
+Free Role
+Key:
+- Dribbling
+- First Touch
+- Long Shots
+- Passing
+- Technique
+- Composure
+- Flair
+- Off the Ball
+- Vision
+
+Preferred:
+- Crossing
+- Finishing
+- Anticipation
+- Decisions
+- Acceleration
+- Agility
+
+
+Second Striker
+Key:
+- Finishing
+- First Touch
+- Anticipation
+- Composure
+- Off the Ball
+- Acceleration
+
+Preferred:
+- Dribbling
+- Long Shots
+- Passing
+- Technique
+- Concentration
+- Decisions
+- Work Rate
+- Agility
+- Pace
+- Stamina
+
+
+Out of Possession
+
+Central Outlet Attacking Midfielder
+Key:
+- Off the Ball
+- Decisions
+- Anticipation
+
+
+Splitting Outlet Attacking Midfielder
+Key:
+- Off the Ball
+- Pace
+- Anticipation
+
+
+Tracking Attacking Midfielder
+Key:
+- Marking
+- Work Rate
+- Stamina
+
+
+
+[AM] Attacking Midfielder (Right/ Left)
+
+In Possession
+
+Wide Forward
+Key:
+- Dribbling
+- First Touch
+- Technique
+- Anticipation
+- Off the Ball
+- Acceleration
+- Agility
+- Pace
+
+Preferred:
+- Crossing
+- Finishing
+- Passing
+- Composure
+- Flair
+- Work Rate
+- Balance
+- Stamina
+
+
+Inside Forward
+Key:
+- Dribbling
+- First Touch
+- Technique
+- Anticipation
+- Composure
+- Off the Ball
+- Acceleration
+- Agility
+
+Preferred:
+- Crossing
+- Finishing
+- Long Shots
+- Passing
+- Flair
+- Vision
+- Work Rate
+- Balance
+- Pace
+- Stamina
+
+
+Out of Possession
+
+Inside Outlet Winger
+Key:
+- Off the Ball
+- Decisions
+- Anticipation
+
+
+Tracking Winger
+Key:
+- Marking
+- Work Rate
+- Stamina
+
+
+Wide Outlet Winger
+Key:
+- Off the Ball
+- Pace
+- Anticipation
+
+
+
+[ST] Striker (Centre)
+
+In Possession
+
+Centre Forward
+Key:
+- Finishing
+- First Touch
+- Heading
+- Technique
+- Composure
+- Off the Ball
+- Acceleration
+- Strength
+
+Preferred:
+- Dribbling
+- Passing
+- Anticipation
+- Decisions
+- Agility
+- Balance
+- Jumping
+- Pace
+
+
+Channel Forward
+Key:
+- Dribbling
+- Finishing
+- First Touch
+- Technique
+- Composure
+- Off the Ball
+- Work Rate
+- Acceleration
+
+Preferred:
+- Crossing
+- Heading
+- Passing
+- Anticipation
+- Decisions
+- Agility
+- Balance
+- Pace
+- Stamina
+
+
+Deep-Lying Forward
+Key:
+- Finishing
+- First Touch
+- Technique
+- Composure
+- Off the Ball
+- Strength
+
+Preferred:
+- Dribbling
+- Passing
+- Anticipation
+- Decisions
+- Team Work
+- Vision
+- Balance
+
+
+False Nine
+Key:
+- Dribbling
+- First Touch
+- Passing
+- Technique
+- Composure
+- Decisions
+- Off the Ball
+- Team Work
+- Vision
+- Acceleration
+
+Preferred:
+- Finishing
+- Anticipation
+- Flair
+- Agility
+- Balance
+
+
+Poacher
+Key:
+- Finishing
+- Heading
+- Anticipation
+- Composure
+- Concentration
+- Off the Ball
+- Acceleration
+
+Preferred:
+- First Touch
+- Technique
+- Decisions
+- Balance
+
+
+Target Forward
+Key:
+- Finishing
+- Heading
+- Aggression
+- Bravery
+- Composure
+- Off the Ball
+- Balance
+- Jumping
+- Strength
+
+Preferred:
+- First Touch
+- Anticipation
+- Decisions
+- Team Work
+
+
+Out of Possession
+
+Central Outlet Centre Forward
+Key:
+- Off the Ball
+- Decisions
+- Anticipation
+
+
+Splitting Outlet Centre Forward
+Key:
+- Off the Ball
+- Pace
+- Anticipation
+
+
+Tracking Centre Forward
+Key:
+- Marking
+- Work Rate
+- Stamina
