@@ -3700,14 +3700,9 @@ useEffect(() => {
   compareGroupRefs.current = {};
 }, [basePlayer?.id]); // reset when base changes
 
-const orderedSelectedGroups = ATTRIBUTE_GROUP_ORDER.filter((g) => (selectedCompareGroups || []).includes(g));
+const orderedSelectedGroups = ATTRIBUTE_GROUP_ORDER;
 
 const jumpToGoalkeeping = () => {
-  setSelectedCompareGroups((prev) => {
-    const has = (prev || []).includes('Goalkeeping');
-    const next = has ? (prev || []) : [...(prev || []), 'Goalkeeping'];
-    return ATTRIBUTE_GROUP_ORDER.filter((g) => next.includes(g));
-  });
   setTimeout(() => {
     const el = compareGroupRefs.current?.Goalkeeping;
     if (el?.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3748,31 +3743,16 @@ const jumpToGoalkeeping = () => {
       
 ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="flex flex-wrap gap-4">
           {comparedPlayers.map((p) => (
-            <Card key={p.id} dark={dark} hover className="p-6">
-              <div className="flex items-start gap-4">
-                <Avatar dark={dark} name={p.name} size="xl" />
+            <Card key={p.id} dark={dark} hover className="px-4 py-3">
+              <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <button className={`font-semibold ${text} hover:underline`} onClick={() => onSelectPlayer?.(p.id)}>{p.name}</button>
-                    <span className="text-xl">{p.nation}</span>
+                    <span className="text-lg">{p.nation}</span>
                   </div>
                   <div className={`text-sm ${muted}`}>{p.pos} • {p.club}</div>
-                  <div className="flex gap-4 mt-3">
-                    <div>
-                      <div className={`text-xs ${muted}`}>CA</div>
-                      <div className="text-emerald-400 font-bold">{p.ca}</div>
-                    </div>
-                    <div>
-                      <div className={`text-xs ${muted}`}>PA</div>
-                      <div className="text-blue-400 font-bold">{p.pa}</div>
-                    </div>
-                    <div className="flex-1">
-                      <div className={`text-xs ${muted}`}>Value</div>
-                      <div className={`text-sm font-semibold ${text}`}>{p.value}</div>
-                    </div>
-                  </div>
                 </div>
 
                 <Button
@@ -3783,24 +3763,6 @@ const jumpToGoalkeeping = () => {
                   title="Remove from compare"
                   onClick={() => onToggleCompare?.(p.id)}
                 />
-              </div>
-
-              <div className={`mt-5 p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-white'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`text-sm font-semibold ${text}`}>Top attributes</div>
-                  <Badge variant="primary" size="xs">{p.positionsLabel || p.pos}</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {topAttrs(p).map((x) => (
-                    <div key={x.k} className={`p-3 rounded-xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
-                      <div className={`text-xs ${muted}`}>{x.name}</div>
-                      <div className="flex items-center justify-between mt-1">
-                        <ProgressBar value={x.v} max={20} variant={x.v >= 17 ? 'success' : 'warning'} size="sm" />
-                        <AttributeValue value={x.v} size="sm" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </Card>
           ))}
@@ -3822,37 +3784,6 @@ const jumpToGoalkeeping = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-4">
-              {ATTRIBUTE_GROUP_ORDER.map((g) => {
-                const on = (selectedCompareGroups || []).includes(g);
-                const isDefault = (defaultCompareGroups || []).includes(g);
-                const count = getAttributeGroupDefs(g, { isGKContext: baseIsGK }).length;
-
-                return (
-                  <button
-                    key={g}
-                    onClick={() => {
-                      setSelectedCompareGroups((prev) => {
-                        const has = (prev || []).includes(g);
-                        const next = has ? (prev || []).filter((x) => x !== g) : [...(prev || []), g];
-                        return ATTRIBUTE_GROUP_ORDER.filter((x) => next.includes(x));
-                      });
-                    }}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
-                      on
-                        ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-                        : `${dark ? 'bg-slate-900/20 text-slate-300' : 'bg-white text-slate-700'} ${border}`
-                    }`}
-                    title={isDefault ? 'Default group' : 'Optional group'}
-                  >
-                    {g === 'Goalkeeping' ? <GKIcon size={14} className={on ? 'border-blue-500/40' : ''} /> : null}
-                    <span>{g}</span>
-                    <Badge variant={on ? 'primary' : 'default'} size="xs" dark={dark}>{count}</Badge>
-                    {isDefault ? <span className={`${muted} text-[10px]`}>• default</span> : null}
-                  </button>
-                );
-              })}
-            </div>
 
             <div className="mt-5 space-y-4">
               {orderedSelectedGroups.map((groupName) => {
