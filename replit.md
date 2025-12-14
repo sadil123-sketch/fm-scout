@@ -34,14 +34,14 @@ Preferred communication style: Simple, everyday language.
 
 **Shortlist System**: Import/export functionality with tagging and notes for player tracking.
 
-**Player Profile Attributes Section**: Redesigned attributes display with:
-- Auto-detection of GK vs Outfield player types (shows appropriate attribute groups automatically)
-- Clean 3-column grid layout with no collapse/toggle controls
-- Interactive tooltips with FM attribute definitions (hover on Info icon)
-- Context-aware tooltips for shared attributes (e.g., First Touch/Passing have different descriptions for GK)
-- **Attribute Groups** (displayed in order based on player type):
-  - Outfield: Technical, Set Pieces, Mental, Physical, Hidden, Mental Traits
-  - Goalkeepers: Goalkeeping, Mental, Physical, Technical, Set Pieces, Hidden, Mental Traits
+**Player Profile Attributes Section**: FM Genie Scout-style compact 3-column layout:
+- **Column Layout** (all visible at once, no tabs):
+  - Outfield: Technical+Set Pieces | Mental+Mental Traits | Physical+Hidden
+  - Goalkeepers: Goalkeeping+Technical+Set Pieces | Mental+Mental Traits | Physical+Hidden
+- Inline section headers within columns with amber styling (dark mode)
+- Compact rows with alternating backgrounds for readability
+- Responsive horizontal scroll on smaller screens (min-width 600px)
+- Interactive tooltips with FM attribute definitions (hover for details)
 - **Hidden Attributes** (5): Consistency, Dirtiness, Important Matches, Injury Proneness, Versatility
 - **Mental Traits** (8): Adaptability, Ambition, Controversy, Loyalty, Pressure, Professionalism, Sportsmanship, Temperament
 
