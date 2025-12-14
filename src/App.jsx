@@ -305,7 +305,7 @@ const ToastStack = ({ toasts, onDismiss, dark }) => {
 // Player Attribute Groups (FM26-aligned)
 // ============================================
 
-const ATTRIBUTE_GROUP_ORDER = ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Goalkeeping'];
+const ATTRIBUTE_GROUP_ORDER = ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Goalkeeping', 'Hidden', 'Mental Traits'];
 
 const ATTRIBUTE_GROUPS_V26 = {
   Technical: [
@@ -367,6 +367,23 @@ const ATTRIBUTE_GROUPS_V26 = {
     { key: 'rushingOut', label: 'Rushing Out (Tendency)' },
     { key: 'throwing', label: 'Throwing' },
   ],
+  Hidden: [
+    { key: 'consistency', label: 'Consistency' },
+    { key: 'dirtiness', label: 'Dirtiness' },
+    { key: 'importantMatches', label: 'Important Matches' },
+    { key: 'injuryProneness', label: 'Injury Proneness' },
+    { key: 'versatility', label: 'Versatility' },
+  ],
+  'Mental Traits': [
+    { key: 'adaptability', label: 'Adaptability' },
+    { key: 'ambition', label: 'Ambition' },
+    { key: 'controversy', label: 'Controversy' },
+    { key: 'loyalty', label: 'Loyalty' },
+    { key: 'pressure', label: 'Pressure' },
+    { key: 'professionalism', label: 'Professionalism' },
+    { key: 'sportsmanship', label: 'Sportsmanship' },
+    { key: 'temperament', label: 'Temperament' },
+  ],
 };
 
 const ATTRIBUTE_GROUPS_GK_OVERRIDES = {
@@ -425,6 +442,19 @@ const ATTRIBUTE_TOOLTIPS = {
   reflexes: "Reaction speed to make saves from close-range shots.",
   rushingOut: "Tendency to come off the line to intercept through balls.",
   throwing: "Ability to distribute the ball accurately with throws.",
+  consistency: "How consistently the player performs to their ability level match after match.",
+  dirtiness: "Likelihood of the player committing fouls and making dirty challenges.",
+  importantMatches: "How well the player performs in big matches and high-pressure situations.",
+  injuryProneness: "How susceptible the player is to picking up injuries.",
+  versatility: "How quickly the player can learn and adapt to new positions.",
+  adaptability: "How well the player adapts to new environments, clubs, and countries.",
+  ambition: "The player's drive to succeed and desire to play at the highest level.",
+  controversy: "How likely the player is to cause controversy or make controversial statements.",
+  loyalty: "How loyal the player is to their current club and likelihood of staying.",
+  pressure: "How well the player handles pressure situations and media attention.",
+  professionalism: "The player's attitude towards training, discipline, and professional conduct.",
+  sportsmanship: "The player's fair play and respect for opponents and officials.",
+  temperament: "The player's emotional stability and ability to control their temper.",
 };
 
 const getAttributeTooltip = (key, groupName) => {
@@ -435,8 +465,8 @@ const getAttributeTooltip = (key, groupName) => {
   return ATTRIBUTE_TOOLTIPS[key] || null;
 };
 
-const DEFAULT_GROUPS_OUTFIELD = ['Technical', 'Set Pieces', 'Mental', 'Physical'];
-const DEFAULT_GROUPS_GK = ['Goalkeeping', 'Mental', 'Physical', 'Technical'];
+const DEFAULT_GROUPS_OUTFIELD = ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Hidden', 'Mental Traits'];
+const DEFAULT_GROUPS_GK = ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces', 'Hidden', 'Mental Traits'];
 
 const isGoalkeeperPlayer = (p) => {
   const pos = String(p?.pos || '').toUpperCase();
@@ -514,6 +544,10 @@ const CAMEL_TO_FM26_ATTR_MAP = {
   communication: 'Communication', eccentricity: 'Eccentricity', handling: 'Handling', kicking: 'Kicking',
   oneOnOnes: 'One on Ones', punching: 'Punching', reflexes: 'Reflexes', rushingOut: 'Rushing Out',
   throwing: 'Throwing',
+  consistency: 'Consistency', dirtiness: 'Dirtiness', importantMatches: 'Important Matches',
+  injuryProneness: 'Injury Proneness', versatility: 'Versatility',
+  adaptability: 'Adaptability', ambition: 'Ambition', controversy: 'Controversy', loyalty: 'Loyalty',
+  pressure: 'Pressure', professionalism: 'Professionalism', sportsmanship: 'Sportsmanship', temperament: 'Temperament',
 };
 
 const convertAttrsToFM26Format = (camelAttrs) => {
@@ -533,7 +567,7 @@ const FM26_TO_CAMEL_ATTR_MAP = Object.fromEntries(
 
 const ATTR_TO_GROUP_MAP_OUTFIELD = (() => {
   const map = {};
-  const outfieldOrder = ['Technical', 'Set Pieces', 'Mental', 'Physical'];
+  const outfieldOrder = ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Hidden', 'Mental Traits'];
   for (const group of outfieldOrder) {
     for (const { key } of (ATTRIBUTE_GROUPS_V26[group] || [])) {
       if (!map[key]) map[key] = group;
@@ -544,7 +578,7 @@ const ATTR_TO_GROUP_MAP_OUTFIELD = (() => {
 
 const ATTR_TO_GROUP_MAP_GK = (() => {
   const map = {};
-  const gkOrder = ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces'];
+  const gkOrder = ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces', 'Hidden', 'Mental Traits'];
   for (const group of gkOrder) {
     const attrs = group === 'Technical' ? (ATTRIBUTE_GROUPS_GK_OVERRIDES.Technical || []) : (ATTRIBUTE_GROUPS_V26[group] || []);
     for (const { key } of attrs) {
@@ -562,7 +596,7 @@ const categorizeRoleAttributesByGroup = (role, playerAttrs, isGK = false) => {
   const unnecessarySet = new Set((role.unnecessary || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
   
   const allRoleAttrs = [...(role.key || []), ...(role.preferred || []), ...(role.unnecessary || [])];
-  const grouped = { Technical: [], 'Set Pieces': [], Mental: [], Physical: [], Goalkeeping: [] };
+  const grouped = { Technical: [], 'Set Pieces': [], Mental: [], Physical: [], Goalkeeping: [], Hidden: [], 'Mental Traits': [] };
   const groupMap = isGK ? ATTR_TO_GROUP_MAP_GK : ATTR_TO_GROUP_MAP_OUTFIELD;
   
   for (const fm26Name of allRoleAttrs) {
@@ -758,6 +792,10 @@ const buildFm26AttributeColumns = (isGKContext, visibleGroups = []) => {
         ...(has('Technical') ? ['Technical'] : []),
         ...(has('Set Pieces') ? ['Set Pieces'] : []),
       ],
+      [
+        ...(has('Hidden') ? ['Hidden'] : []),
+        ...(has('Mental Traits') ? ['Mental Traits'] : []),
+      ],
     ];
   }
 
@@ -770,6 +808,10 @@ const buildFm26AttributeColumns = (isGKContext, visibleGroups = []) => {
     [
       ...(has('Physical') ? ['Physical'] : []),
       ...(has('Goalkeeping') ? ['Goalkeeping'] : []),
+    ],
+    [
+      ...(has('Hidden') ? ['Hidden'] : []),
+      ...(has('Mental Traits') ? ['Mental Traits'] : []),
     ],
   ];
 };
@@ -3174,8 +3216,8 @@ const visibleAttrGroups = defaultAttrGroups;
                   const isGK = isGoalkeeperPlayer(player);
                   const groupedAttrs = categorizeRoleAttributesByGroup(role, a, isGK);
                   const groupOrder = isGK 
-                    ? ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces']
-                    : ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Goalkeeping'];
+                    ? ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces', 'Hidden', 'Mental Traits']
+                    : ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Goalkeeping', 'Hidden', 'Mental Traits'];
                   const hasAttrs = groupOrder.some(g => groupedAttrs[g]?.length > 0);
                   
                   if (!hasAttrs) {
