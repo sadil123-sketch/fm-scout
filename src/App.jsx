@@ -527,6 +527,72 @@ const convertAttrsToFM26Format = (camelAttrs) => {
   return fm26Attrs;
 };
 
+const FM26_TO_CAMEL_ATTR_MAP = Object.fromEntries(
+  Object.entries(CAMEL_TO_FM26_ATTR_MAP).map(([camel, fm26]) => [fm26.toLowerCase().replace(/\s+/g, ''), camel])
+);
+
+const ATTR_TO_GROUP_MAP_OUTFIELD = (() => {
+  const map = {};
+  const outfieldOrder = ['Technical', 'Set Pieces', 'Mental', 'Physical'];
+  for (const group of outfieldOrder) {
+    for (const { key } of (ATTRIBUTE_GROUPS_V26[group] || [])) {
+      if (!map[key]) map[key] = group;
+    }
+  }
+  return map;
+})();
+
+const ATTR_TO_GROUP_MAP_GK = (() => {
+  const map = {};
+  const gkOrder = ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces'];
+  for (const group of gkOrder) {
+    const attrs = group === 'Technical' ? (ATTRIBUTE_GROUPS_GK_OVERRIDES.Technical || []) : (ATTRIBUTE_GROUPS_V26[group] || []);
+    for (const { key } of attrs) {
+      if (!map[key]) map[key] = group;
+    }
+  }
+  return map;
+})();
+
+const categorizeRoleAttributesByGroup = (role, playerAttrs, isGK = false) => {
+  if (!role) return {};
+  
+  const keySet = new Set((role.key || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
+  const prefSet = new Set((role.preferred || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
+  const unnecessarySet = new Set((role.unnecessary || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
+  
+  const allRoleAttrs = [...(role.key || []), ...(role.preferred || []), ...(role.unnecessary || [])];
+  const grouped = { Technical: [], 'Set Pieces': [], Mental: [], Physical: [], Goalkeeping: [] };
+  const groupMap = isGK ? ATTR_TO_GROUP_MAP_GK : ATTR_TO_GROUP_MAP_OUTFIELD;
+  
+  for (const fm26Name of allRoleAttrs) {
+    const normalized = fm26Name.toLowerCase().replace(/\s+/g, '');
+    const camelKey = FM26_TO_CAMEL_ATTR_MAP[normalized];
+    if (!camelKey) continue;
+    
+    const group = groupMap[camelKey];
+    if (!group || !grouped[group]) continue;
+    
+    const value = playerAttrs?.[camelKey];
+    if (typeof value !== 'number') continue;
+    
+    const type = keySet.has(normalized) ? 'key' : prefSet.has(normalized) ? 'preferred' : unnecessarySet.has(normalized) ? 'unnecessary' : 'preferred';
+    
+    if (!grouped[group].some(x => x.key === camelKey)) {
+      grouped[group].push({ key: camelKey, name: fm26Name, value, type });
+    }
+  }
+  
+  for (const group of Object.keys(grouped)) {
+    grouped[group].sort((a, b) => {
+      const priority = { key: 0, preferred: 1, unnecessary: 2 };
+      return priority[a.type] - priority[b.type];
+    });
+  }
+  
+  return grouped;
+};
+
 const getPositionColor = (rating) => {
   if (rating >= 15) return { bg: '#22c55e', border: '#16a34a', text: '#fff' };
   if (rating >= 10) return { bg: '#eab308', border: '#ca8a04', text: '#1e293b' };
@@ -3102,59 +3168,72 @@ const visibleAttrGroups = defaultAttrGroups;
                     <span className="text-xs text-blue-400">{selectedRole.role.displayName}</span>
                   )}
                 </div>
-                <div className="space-y-2">
-                  {(() => {
-                    const role = selectedRole?.role;
-                    const keyAttrsSet = new Set((role?.keyAttributes || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
-                    const prefAttrsSet = new Set((role?.preferredAttributes || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
-                    
-                    const roleAttrs = [...(role?.keyAttributes || []), ...(role?.preferredAttributes || [])];
-                    const fm26ToCamel = Object.fromEntries(
-                      Object.entries(CAMEL_TO_FM26_ATTR_MAP).map(([camel, fm26]) => [fm26.toLowerCase().replace(/\s+/g, ''), camel])
-                    );
-                    
-                    const attrsToShow = roleAttrs.length > 0 
-                      ? roleAttrs.slice(0, 8).map(fm26Name => {
-                          const normalized = fm26Name.toLowerCase().replace(/\s+/g, '');
-                          const camelKey = fm26ToCamel[normalized] || fm26Name;
-                          return {
-                            key: camelKey,
-                            name: fm26Name,
-                            value: a[camelKey],
-                            isKey: keyAttrsSet.has(normalized),
-                            isPreferred: prefAttrsSet.has(normalized),
-                          };
-                        }).filter(x => typeof x.value === 'number')
-                      : keyAttrs.slice(0, 6).map(attr => ({
-                          ...attr,
-                          isKey: false,
-                          isPreferred: false,
-                        }));
-                    
-                    return attrsToShow.map((attr) => (
-                      <div key={attr.key} className={`flex items-center gap-3 py-1.5 px-2 rounded-lg ${
-                        attr.isKey ? 'bg-emerald-500/10 border border-emerald-500/30' :
-                        attr.isPreferred ? 'bg-blue-500/10 border border-blue-500/20' :
-                        'bg-transparent'
-                      }`}>
-                        <span className={`text-sm flex-1 ${
-                          attr.isKey ? 'font-semibold text-emerald-400' :
-                          attr.isPreferred ? 'text-blue-300' :
-                          muted
-                        }`}>{attr.name}</span>
-                        <div className="w-24">
-                          <ProgressBar 
-                            value={attr.value} 
-                            max={20} 
-                            variant={attr.isKey ? 'success' : attr.value >= 15 ? 'success' : 'warning'} 
-                            size="sm" 
-                          />
-                        </div>
-                        <AttributeValue value={attr.value} size="sm" />
+                {(() => {
+                  const role = selectedRole?.role;
+                  const isGK = isGoalkeeperPlayer(player);
+                  const groupedAttrs = categorizeRoleAttributesByGroup(role, a, isGK);
+                  const groupOrder = isGK 
+                    ? ['Goalkeeping', 'Mental', 'Physical', 'Technical', 'Set Pieces']
+                    : ['Technical', 'Set Pieces', 'Mental', 'Physical', 'Goalkeeping'];
+                  const hasAttrs = groupOrder.some(g => groupedAttrs[g]?.length > 0);
+                  
+                  if (!hasAttrs) {
+                    return (
+                      <div className={`text-sm ${muted} text-center py-4`}>
+                        Select a role to see key attributes
                       </div>
-                    ));
-                  })()}
-                </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="space-y-4">
+                      {groupOrder.map(groupName => {
+                        const attrs = groupedAttrs[groupName] || [];
+                        if (attrs.length === 0) return null;
+                        
+                        return (
+                          <div key={groupName}>
+                            <div className="flex items-center gap-2 mb-2 pb-1 border-b border-slate-700/30">
+                              {groupName === 'Goalkeeping' && <GKIcon size={12} />}
+                              <span className={`text-xs font-semibold uppercase tracking-wider ${muted}`}>{groupName}</span>
+                              <Badge variant="default" dark={dark} size="xs">{attrs.length}</Badge>
+                            </div>
+                            <div className="space-y-1">
+                              {attrs.map(attr => (
+                                <div key={attr.key} className={`flex items-center gap-2 py-1 px-2 rounded-lg ${
+                                  attr.type === 'key' ? 'bg-emerald-500/10' :
+                                  attr.type === 'unnecessary' ? 'bg-slate-500/5' :
+                                  'bg-transparent'
+                                }`}>
+                                  <span className={`text-sm flex-1 ${
+                                    attr.type === 'key' ? 'font-semibold text-emerald-400' :
+                                    attr.type === 'preferred' ? 'text-blue-300' :
+                                    'text-slate-500 line-through'
+                                  }`}>{attr.name}</span>
+                                  <AttributeValue value={attr.value} size="sm" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center gap-4 pt-2 border-t border-slate-700/20">
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          <span className={`text-[10px] ${muted}`}>Key</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                          <span className={`text-[10px] ${muted}`}>Preferred</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                          <span className={`text-[10px] ${muted}`}>Unnecessary</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className={`mt-4 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-center justify-between`}>
                   <div className={`text-xs ${muted}`}>DOB</div>
                   <div className={`text-xs ${text}`}>{formatISODate(player.dob)}</div>
