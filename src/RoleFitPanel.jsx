@@ -1,284 +1,195 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { getRolesByPhaseAndGroup, ROLE_DEFINITIONS_FM26, validateRoleDefinitions } from "./fm26RoleDefinitions.js";
-import { computePhaseRoleFits, DEFAULT_RATING_ENGINE_SETTINGS } from "./roleFit.js";
+import React, { useMemo } from "react";
+import { ROLE_DEFINITIONS_FM26 } from "./fm26RoleDefinitions.js";
+import { computeRoleFit, getTierColor } from "./roleFit.js";
 
-/**
- * Drop-in Role Fit panel for Player Profile.
- *
- * Requirements covered:
- * - IP/OOP computed separately
- * - "Both" mode shows IP + OOP + Overall 50/50 (current version)
- * - Unnecessary ignored
- * - Normalization ON by default
- * - Contribution table always visible (explainable scoring)
- *
- * Props:
- *   player: { id, name, positions?: string[], attributes: Record<string, number|string> }
- *   positionGroup: string (e.g., "GK", "D-C", "DM", "ST") — used to filter role dropdowns
- */
+const VALID_FM26_GROUPS = [
+  'GK', 'D-C', 'D-LR', 'D/WB-LR', 'WB-LR', 'DM', 'M-C', 'M-LR', 
+  'M/AM-C', 'M/AM-LR', 'AM-C', 'AM-LR', 'ST'
+];
+
+const mapPositionToGroups = (positionGroup) => {
+  if (!positionGroup || positionGroup === 'ALL') return null;
+  
+  const p = String(positionGroup).toUpperCase();
+  
+  if (VALID_FM26_GROUPS.includes(p)) return [p];
+  
+  if (p.includes('GK')) return ['GK'];
+  if (p === 'CB' || p.includes('D(C)')) return ['D-C'];
+  if (p.includes('D(L)') || p.includes('D(R)')) return ['D-LR', 'D/WB-LR'];
+  if (p.includes('WB') || p === 'FB/WB') return ['WB-LR', 'D/WB-LR'];
+  if (p === 'DM/CM') return ['DM', 'M-C', 'M/AM-C'];
+  if (p.includes('DM')) return ['DM'];
+  if (p.includes('M(C)')) return ['M-C', 'M/AM-C'];
+  if (p.includes('M(L)') || p.includes('M(R)')) return ['M-LR', 'M/AM-LR'];
+  if (p.includes('AM(C)')) return ['AM-C', 'M/AM-C'];
+  if (p.includes('AM(L)') || p.includes('AM(R)')) return ['AM-LR', 'M/AM-LR'];
+  if (p === 'W/AM' || p.includes('RW') || p.includes('LW')) return ['AM-LR', 'M/AM-LR', 'M-LR'];
+  if (p.includes('ST')) return ['ST'];
+  
+  return null;
+};
+
+const getUniquePositionGroups = () => {
+  const groups = new Set();
+  ROLE_DEFINITIONS_FM26.forEach(r => groups.add(r.positionGroup));
+  return Array.from(groups);
+};
+
+const getRolesForPositionGroups = (positionGroups) => {
+  if (!positionGroups) {
+    return ROLE_DEFINITIONS_FM26;
+  }
+  return ROLE_DEFINITIONS_FM26.filter(r => positionGroups.includes(r.positionGroup));
+};
+
 export default function RoleFitPanel({ player, positionGroup }) {
-  const [mode, setMode] = useState("BOTH"); // "IP" | "OOP" | "BOTH"
-  const [ipRoleId, setIpRoleId] = useState("");
-  const [oopRoleId, setOopRoleId] = useState("");
+  const mappedGroups = useMemo(() => mapPositionToGroups(positionGroup), [positionGroup]);
+  const allRoles = useMemo(() => getRolesForPositionGroups(mappedGroups), [mappedGroups]);
+  
+  const ipRoles = useMemo(() => allRoles.filter(r => r.phase === "IP"), [allRoles]);
+  const oopRoles = useMemo(() => allRoles.filter(r => r.phase === "OOP"), [allRoles]);
 
-  // Settings are save-scoped; prototype uses local state defaults
-  const [settings, setSettings] = useState(DEFAULT_RATING_ENGINE_SETTINGS);
+  const playerAttrs = player?.attributes || player?.attrs || {};
 
-  useEffect(() => {
-    // Validate dataset once; helpful during dev
-    const errors = validateRoleDefinitions(ROLE_DEFINITIONS_FM26);
-    if (errors.length) console.warn("[FM26 RoleDefs] Unknown attributes:", errors);
-  }, []);
+  const ipFits = useMemo(() => {
+    return ipRoles.map(role => ({
+      role,
+      fit: computeRoleFit(role, playerAttrs),
+    })).sort((a, b) => b.fit.percentage - a.fit.percentage);
+  }, [ipRoles, playerAttrs]);
 
-  const ipRoles = useMemo(() => getRolesByPhaseAndGroup("IP", positionGroup), [positionGroup]);
-  const oopRoles = useMemo(() => getRolesByPhaseAndGroup("OOP", positionGroup), [positionGroup]);
+  const oopFits = useMemo(() => {
+    return oopRoles.map(role => ({
+      role,
+      fit: computeRoleFit(role, playerAttrs),
+    })).sort((a, b) => b.fit.percentage - a.fit.percentage);
+  }, [oopRoles, playerAttrs]);
 
-  // auto-select first role when switching mode / group
-  useEffect(() => {
-    if (mode !== "OOP" && !ipRoleId && ipRoles.length) setIpRoleId(ipRoles[0].id);
-    if (mode !== "IP" && !oopRoleId && oopRoles.length) setOopRoleId(oopRoles[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, positionGroup, ipRoles.length, oopRoles.length]);
+  const bestIP = ipFits[0];
+  const bestOOP = oopFits[0];
 
-  const fits = useMemo(() => {
-    return computePhaseRoleFits({
-      ipRoleId: mode === "OOP" ? "" : ipRoleId,
-      oopRoleId: mode === "IP" ? "" : oopRoleId,
-      playerAttrs: player?.attributes || {},
-      settings,
-    });
-  }, [mode, ipRoleId, oopRoleId, player, settings]);
-
-  const fmt = (n) => (typeof n === "number" ? n.toFixed(2) : "—");
+  const displayPositionGroup = positionGroup === 'ALL' ? 'All Positions' : (positionGroup || 'Position');
 
   return (
-    <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-100">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-sm text-zinc-400">Role Fit</div>
-          <div className="text-lg font-semibold">{player?.name || "Player"} <span className="text-zinc-500 text-sm">({positionGroup || "All"})</span></div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <ModePill value={mode} onChange={setMode} />
-        </div>
+    <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-5 text-zinc-100">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold text-white">Role Fit</h2>
+        <p className="text-sm text-zinc-400 mt-1">
+          {player?.name || "Player"} • {displayPositionGroup}
+        </p>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        {/* Role selectors */}
-        {mode !== "OOP" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-            <div className="text-xs text-zinc-400">In Possession Role</div>
-            <select
-              className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-              value={ipRoleId}
-              onChange={(e) => setIpRoleId(e.target.value)}
-            >
-              {ipRoles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.displayName}
-                </option>
-              ))}
-            </select>
-
-            <div className="mt-3 text-sm">
-              <div className="text-zinc-400 text-xs">IP Score</div>
-              <div className="text-2xl font-semibold">{fits.ip ? fmt(fits.ip.score) : "—"}</div>
-            </div>
-          </div>
-        )}
-
-        {mode !== "IP" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-            <div className="text-xs text-zinc-400">Out of Possession Role</div>
-            <select
-              className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-              value={oopRoleId}
-              onChange={(e) => setOopRoleId(e.target.value)}
-            >
-              {oopRoles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.displayName}
-                </option>
-              ))}
-            </select>
-
-            <div className="mt-3 text-sm">
-              <div className="text-zinc-400 text-xs">OOP Score</div>
-              <div className="text-2xl font-semibold">{fits.oop ? fmt(fits.oop.score) : "—"}</div>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-zinc-400">Rating Engine</div>
-              <div className="text-sm font-semibold">Default Weights (Save)</div>
-            </div>
-            <div className="text-xs text-zinc-500">Normalized</div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <NumberField
-              label="Key"
-              value={settings.keyWeight}
-              step={0.05}
-              min={0}
-              max={2}
-              onChange={(v) => setSettings((s) => ({ ...s, keyWeight: v }))}
-            />
-            <NumberField
-              label="Preferred"
-              value={settings.preferredWeight}
-              step={0.05}
-              min={0}
-              max={2}
-              onChange={(v) => setSettings((s) => ({ ...s, preferredWeight: v }))}
-            />
-          </div>
-
-          <label className="mt-3 flex items-center justify-between text-xs text-zinc-300">
-            <span>Normalization</span>
-            <input
-              type="checkbox"
-              checked={settings.normalizationEnabled !== false}
-              onChange={(e) => setSettings((s) => ({ ...s, normalizationEnabled: e.target.checked }))}
-            />
-          </label>
-
-          {mode === "BOTH" && (
-            <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950 p-2">
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-zinc-400">Overall (50/50)</div>
-                <div className="text-base font-semibold">{fits.overall ? fmt(fits.overall) : "—"}</div>
-              </div>
-              <div className="mt-1 text-[11px] text-zinc-500">
-                Convenience summary for “Both” mode (not a final combined system).
-              </div>
-            </div>
-          )}
+      {bestIP && bestOOP && (
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <BestRoleCard label="Best IP Role" role={bestIP.role} fit={bestIP.fit} />
+          <BestRoleCard label="Best OOP Role" role={bestOOP.role} fit={bestOOP.fit} />
         </div>
-      </div>
+      )}
 
-      {/* Contribution tables */}
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {mode !== "OOP" && (
-          <ContributionTable title="In Possession Contribution" role={fits.ipRole} fit={fits.ip} />
-        )}
-        {mode !== "IP" && (
-          <ContributionTable title="Out of Possession Contribution" role={fits.oopRole} fit={fits.oop} />
-        )}
+      {(!bestIP && !bestOOP) && (
+        <div className="text-center py-8 text-zinc-500">
+          <p>No roles available for this position.</p>
+          <p className="text-sm mt-1">Select a different position to see role fit scores.</p>
+        </div>
+      )}
+
+      {(bestIP || bestOOP) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RolePhaseSection 
+            title="In Possession (IP)" 
+            description="How well the player performs when the team has the ball"
+            fits={ipFits} 
+          />
+          <RolePhaseSection 
+            title="Out of Possession (OOP)" 
+            description="How well the player performs when defending"
+            fits={oopFits} 
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BestRoleCard({ label, role, fit }) {
+  const colors = fit.tierColor;
+  
+  return (
+    <div className={`rounded-xl border ${colors.border} ${colors.bg} p-4`}>
+      <div className="text-xs text-zinc-400 mb-1">{label}</div>
+      <div className="font-semibold text-white">{role.displayName}</div>
+      <div className="flex items-center gap-2 mt-2">
+        <span className={`text-2xl font-bold ${colors.text}`}>{fit.percentage}%</span>
+        <TierBadge tier={fit.tier} percentage={fit.percentage} />
       </div>
     </div>
   );
 }
 
-function ModePill({ value, onChange }) {
-  const items = [
-    { id: "IP", label: "IP" },
-    { id: "OOP", label: "OOP" },
-    { id: "BOTH", label: "Both" },
-  ];
-  return (
-    <div className="flex overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
-      {items.map((it) => {
-        const active = it.id === value;
-        return (
-          <button
-            key={it.id}
-            onClick={() => onChange(it.id)}
-            className={
-              "px-3 py-2 text-sm transition " +
-              (active ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200")
-            }
-          >
-            {it.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function NumberField({ label, value, onChange, step = 0.1, min = 0, max = 2 }) {
-  return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2">
-      <div className="text-[11px] text-zinc-400">{label}</div>
-      <input
-        className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm"
-        type="number"
-        value={value}
-        step={step}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </div>
-  );
-}
-
-function ContributionTable({ title, role, fit }) {
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-xs text-zinc-400">{title}</div>
-          <div className="text-sm font-semibold">{role ? role.displayName : "—"}</div>
-        </div>
-        <div className="text-right">
-          <div className="text-xs text-zinc-400">Score</div>
-          <div className="text-lg font-semibold">{fit ? fit.score.toFixed(2) : "—"}</div>
-        </div>
+function RolePhaseSection({ title, description, fits }) {
+  if (!fits.length) {
+    return (
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <h3 className="font-semibold text-white mb-1">{title}</h3>
+        <p className="text-sm text-zinc-500">No roles available for this position.</p>
       </div>
+    );
+  }
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-zinc-800">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-950 text-xs text-zinc-400">
-            <tr>
-              <th className="px-3 py-2">Attribute</th>
-              <th className="px-3 py-2">Cat</th>
-              <th className="px-3 py-2 text-right">Value</th>
-              <th className="px-3 py-2 text-right">Weight</th>
-              <th className="px-3 py-2 text-right">Contrib</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800">
-            {(fit?.contributions || []).map((r) => (
-              <tr key={r.attribute} className="bg-zinc-900/30">
-                <td className="px-3 py-2">{r.attribute}</td>
-                <td className="px-3 py-2">
-                  <CatBadge cat={r.category} />
-                </td>
-                <td className="px-3 py-2 text-right">{r.value}</td>
-                <td className="px-3 py-2 text-right">{r.weight.toFixed(2)}</td>
-                <td className="px-3 py-2 text-right">{r.contribution.toFixed(2)}</td>
-              </tr>
-            ))}
-            {!fit?.contributions?.length && (
-              <tr>
-                <td className="px-3 py-3 text-sm text-zinc-500" colSpan={5}>
-                  Select a role to see the contribution breakdown.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="mb-4">
+        <h3 className="font-semibold text-white">{title}</h3>
+        <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
+      </div>
+      
+      <div className="space-y-2 max-h-80 overflow-y-auto">
+        {fits.map(({ role, fit }) => (
+          <RoleRow key={role.id} role={role} fit={fit} />
+        ))}
       </div>
     </div>
   );
 }
 
-function CatBadge({ cat }) {
-  const map = {
-    KEY: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-    PREFERRED: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-    UNNECESSARY: "bg-zinc-500/10 text-zinc-300 border-zinc-500/20",
-  };
-  const label = cat === "UNNECESSARY" ? "UNN" : cat === "PREFERRED" ? "PREF" : "KEY";
+function RoleRow({ role, fit }) {
+  const colors = fit.tierColor;
+  const barColor = fit.percentage >= 90 ? 'bg-emerald-500' 
+    : fit.percentage >= 70 ? 'bg-blue-500'
+    : fit.percentage >= 50 ? 'bg-amber-500'
+    : 'bg-red-500';
+  
   return (
-    <span className={"inline-flex rounded-md border px-2 py-0.5 text-[11px] " + (map[cat] || map.KEY)}>
-      {label}
+    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-zinc-900/60 border border-zinc-800/50">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <span className="text-sm text-zinc-200 truncate">{role.displayName}</span>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="w-20 h-2 bg-zinc-800 rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${fit.percentage}%` }}
+          />
+        </div>
+        <span className={`text-sm font-medium w-10 text-right ${colors.text}`}>
+          {fit.percentage}%
+        </span>
+        <TierBadge tier={fit.tier} percentage={fit.percentage} size="sm" />
+      </div>
+    </div>
+  );
+}
+
+function TierBadge({ tier, percentage, size = "md" }) {
+  const colors = getTierColor(percentage);
+  const sizeClasses = size === "sm" 
+    ? "text-[10px] px-1.5 py-0.5 min-w-[70px]" 
+    : "text-xs px-2 py-1";
+  
+  return (
+    <span className={`${sizeClasses} rounded-md border ${colors.border} ${colors.bg} ${colors.text} font-medium whitespace-nowrap text-center`}>
+      {tier}
     </span>
   );
 }
