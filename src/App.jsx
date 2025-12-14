@@ -3284,48 +3284,124 @@ const visibleAttrGroups = defaultAttrGroups;
 
         
 {activeTab === 'attributes' && (
-  <div className="overflow-x-auto">
-    <div className={`min-w-[600px] ${dark ? 'bg-slate-900/80' : 'bg-white'}`}>
-      {(() => {
-        const columnConfig = isGKPlayer ? [
-          { 
-            mainGroup: 'Goalkeeping', 
-            mainLabel: 'Goalkeeping',
-            subGroups: [
-              { group: 'Technical', label: 'Technical' },
-              { group: 'Set Pieces', label: 'Set Pieces' }
-            ]
-          },
-          { 
-            mainGroup: 'Mental', 
-            mainLabel: 'Mental Attributes',
-            subGroups: [{ group: 'Mental Traits', label: 'Mental Traits' }]
-          },
-          { 
-            mainGroup: 'Physical', 
-            mainLabel: 'Physical Attributes',
-            subGroups: [{ group: 'Hidden', label: 'Hidden Attributes' }]
-          },
-        ] : [
-          { 
-            mainGroup: 'Technical', 
-            mainLabel: 'Technical Attributes',
-            subGroups: [{ group: 'Set Pieces', label: 'Set Pieces' }]
-          },
-          { 
-            mainGroup: 'Mental', 
-            mainLabel: 'Mental Attributes',
-            subGroups: [{ group: 'Mental Traits', label: 'Mental Traits' }]
-          },
-          { 
-            mainGroup: 'Physical', 
-            mainLabel: 'Physical Attributes',
-            subGroups: [{ group: 'Hidden', label: 'Hidden Attributes' }]
-          },
-        ];
+  <div className="space-y-3">
+    <div className="overflow-x-auto">
+      <div className={`min-w-[600px] ${dark ? 'bg-slate-900/80' : 'bg-white'}`}>
+        {(() => {
+          const columnConfig = isGKPlayer ? [
+            { 
+              mainGroup: 'Goalkeeping', 
+              mainLabel: 'Goalkeeping',
+              subGroups: [
+                { group: 'Technical', label: 'Technical' },
+                { group: 'Set Pieces', label: 'Set Pieces' }
+              ]
+            },
+            { 
+              mainGroup: 'Mental', 
+              mainLabel: 'Mental Attributes',
+              subGroups: []
+            },
+            { 
+              mainGroup: 'Physical', 
+              mainLabel: 'Physical Attributes',
+              subGroups: [{ group: 'Hidden', label: 'Hidden Attributes' }]
+            },
+          ] : [
+            { 
+              mainGroup: 'Technical', 
+              mainLabel: 'Technical Attributes',
+              subGroups: [{ group: 'Set Pieces', label: 'Set Pieces' }]
+            },
+            { 
+              mainGroup: 'Mental', 
+              mainLabel: 'Mental Attributes',
+              subGroups: []
+            },
+            { 
+              mainGroup: 'Physical', 
+              mainLabel: 'Physical Attributes',
+              subGroups: [{ group: 'Hidden', label: 'Hidden Attributes' }]
+            },
+          ];
 
-        const renderAttrRow = (attr, groupName, isOdd) => {
-          const tooltip = getAttributeTooltip(attr.key, groupName);
+          const renderAttrRow = (attr, groupName, isOdd) => {
+            const tooltip = getAttributeTooltip(attr.key, groupName);
+            return (
+              <div 
+                key={attr.key} 
+                className={`flex items-center justify-between py-0.5 px-2 ${isOdd ? (dark ? 'bg-slate-800/30' : 'bg-slate-50') : ''}`}
+              >
+                <AttributeTooltip label={attr.label} tooltip={tooltip}>
+                  <span className={`text-[13px] ${dark ? 'text-slate-200' : 'text-slate-700'}`}>{attr.label}</span>
+                </AttributeTooltip>
+                <AttributeValue value={attr.value} size="sm" />
+              </div>
+            );
+          };
+
+          const renderSectionHeader = (label, isSubSection = false) => (
+            <div className={`px-2 py-0.5 ${isSubSection ? 'mt-0.5 border-t' : 'border-b'} ${dark ? 'bg-slate-800/80 border-slate-600/50' : 'bg-slate-100 border-slate-300'}`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider ${dark ? 'text-amber-400/90' : 'text-slate-600'}`}>
+                {label}
+              </span>
+            </div>
+          );
+
+          return (
+            <div className={`grid grid-cols-3 ${dark ? 'divide-slate-600/50' : 'divide-slate-300'} divide-x`}>
+              {columnConfig.map((col, colIdx) => {
+                const mainItems = attributeGroups?.[col.mainGroup] || [];
+                let rowIndex = 0;
+                
+                return (
+                  <div key={colIdx} className="min-w-0">
+                    {renderSectionHeader(col.mainLabel)}
+                    <div>
+                      {mainItems.map((attr) => {
+                        const isOdd = rowIndex % 2 === 1;
+                        rowIndex++;
+                        return renderAttrRow(attr, col.mainGroup, isOdd);
+                      })}
+                    </div>
+                    
+                    {col.subGroups.map((sub) => {
+                      const subItems = attributeGroups?.[sub.group] || [];
+                      if (subItems.length === 0) return null;
+                      
+                      return (
+                        <div key={sub.group}>
+                          {renderSectionHeader(sub.label, true)}
+                          <div>
+                            {subItems.map((attr) => {
+                              const isOdd = rowIndex % 2 === 1;
+                              rowIndex++;
+                              return renderAttrRow(attr, sub.group, isOdd);
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+    
+    {/* Mental Traits - Separate Section */}
+    <div className={`${dark ? 'bg-slate-900/80' : 'bg-white'}`}>
+      <div className={`px-2 py-0.5 border-b ${dark ? 'bg-slate-800/80 border-slate-600/50' : 'bg-slate-100 border-slate-300'}`}>
+        <span className={`text-[11px] font-bold uppercase tracking-wider ${dark ? 'text-amber-400/90' : 'text-slate-600'}`}>
+          Mental Traits
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4">
+        {(attributeGroups?.['Mental Traits'] || []).map((attr, idx) => {
+          const tooltip = getAttributeTooltip(attr.key, 'Mental Traits');
+          const isOdd = idx % 2 === 1;
           return (
             <div 
               key={attr.key} 
@@ -3337,56 +3413,8 @@ const visibleAttrGroups = defaultAttrGroups;
               <AttributeValue value={attr.value} size="sm" />
             </div>
           );
-        };
-
-        const renderSectionHeader = (label, isSubSection = false) => (
-          <div className={`px-2 py-0.5 ${isSubSection ? 'mt-0.5 border-t' : 'border-b'} ${dark ? 'bg-slate-800/80 border-slate-600/50' : 'bg-slate-100 border-slate-300'}`}>
-            <span className={`text-[11px] font-bold uppercase tracking-wider ${dark ? 'text-amber-400/90' : 'text-slate-600'}`}>
-              {label}
-            </span>
-          </div>
-        );
-
-        return (
-          <div className={`grid grid-cols-3 ${dark ? 'divide-slate-600/50' : 'divide-slate-300'} divide-x`}>
-            {columnConfig.map((col, colIdx) => {
-              const mainItems = attributeGroups?.[col.mainGroup] || [];
-              let rowIndex = 0;
-              
-              return (
-                <div key={colIdx} className="min-w-0">
-                  {renderSectionHeader(col.mainLabel)}
-                  <div>
-                    {mainItems.map((attr) => {
-                      const isOdd = rowIndex % 2 === 1;
-                      rowIndex++;
-                      return renderAttrRow(attr, col.mainGroup, isOdd);
-                    })}
-                  </div>
-                  
-                  {col.subGroups.map((sub) => {
-                    const subItems = attributeGroups?.[sub.group] || [];
-                    if (subItems.length === 0) return null;
-                    
-                    return (
-                      <div key={sub.group}>
-                        {renderSectionHeader(sub.label, true)}
-                        <div>
-                          {subItems.map((attr) => {
-                            const isOdd = rowIndex % 2 === 1;
-                            rowIndex++;
-                            return renderAttrRow(attr, sub.group, isOdd);
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
+        })}
+      </div>
     </div>
   </div>
 )}
