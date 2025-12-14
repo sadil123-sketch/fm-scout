@@ -745,7 +745,7 @@ const Sidebar = ({ dark, collapsed, activeNav, gameLoaded = false }) => {
 
   if (collapsed) {
     return (
-      <aside className={`w-16 ${dark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-xl border-r ${border} flex flex-col items-center py-4`}>
+      <aside className={`w-16 shrink-0 ${dark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-xl border-r ${border} flex flex-col items-center py-4`}>
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-6">
           <Sparkles className="text-white" size={18} />
         </div>
@@ -768,7 +768,7 @@ const Sidebar = ({ dark, collapsed, activeNav, gameLoaded = false }) => {
   }
 
   return (
-    <aside className={`w-64 ${dark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-xl border-r ${border} flex flex-col`}>
+    <aside className={`w-64 shrink-0 ${dark ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-xl border-r ${border} flex flex-col`}>
       <div className="p-5 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
           <Sparkles className="text-white" size={20} />
@@ -1321,7 +1321,7 @@ const RolePairLivePreview = ({ dark, title = 'Live Preview', ipWeights, oopWeigh
         <Badge variant="success">Realtime</Badge>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {samplePlayers.map((p) => {
           const { ip, oop, total } = calcRolePairScore({ attrs: p.attrs, ipWeights, oopWeights, mix });
           return (
@@ -1385,7 +1385,7 @@ const DashboardScreen = ({ dark, gameLoaded, onLoadGame }) => {
               <Button variant="secondary" size="lg" icon={FolderOpen} dark={dark}>Browse Files</Button>
             </div>
           </div>
-          <div className={`${dark ? 'bg-slate-700/50' : 'bg-slate-100'} rounded-2xl p-6 min-w-[280px]`}>
+          <div className={`${dark ? 'bg-slate-700/50' : 'bg-slate-100'} rounded-2xl p-6 w-72 shrink-0`}>
             <div className="flex items-center gap-3 mb-4">
               {gameLoaded ? <CheckCircle2 className="text-emerald-500" size={24} /> : <Loader2 className={`${muted} animate-spin`} size={24} />}
               <span className={`font-semibold ${gameLoaded ? text : muted}`}>{gameLoaded ? 'Save Loaded' : 'Waiting for FM...'}</span>
@@ -1403,10 +1403,10 @@ const DashboardScreen = ({ dark, gameLoaded, onLoadGame }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
           <h2 className={`text-sm font-semibold ${muted} uppercase tracking-wider mb-4`}>Quick Actions</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               { icon: Users, title: 'Search Players', desc: 'Find your next star', color: 'blue' },
               { icon: List, title: 'Shortlists', desc: 'Manage targets', color: 'emerald' },
@@ -2198,7 +2198,7 @@ const PlayerSearchScreen = ({ dark, players = SAMPLE_PLAYERS, onSelectPlayer, is
                       <div className={`text-sm ${text}`}>Key stars</div>
                       <Badge variant="primary" size="xs">{s.trait}</Badge>
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="mt-3 grid grid-cols-2 lg:grid-cols-3 gap-3">
                       {Object.entries(s.stars).slice(0,3).map(([k,v]) => (
                         <div key={k} className="text-center">
                           <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{k}</div>
@@ -2232,11 +2232,11 @@ const PlayerSearchScreen = ({ dark, players = SAMPLE_PLAYERS, onSelectPlayer, is
                       <div className={`text-sm ${muted}`}>{c.country} • {c.league}</div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
-                      <div className="min-w-[140px]">
+                      <div className="w-36">
                         <div className={`text-xs ${muted} mb-1`}>Facilities</div>
                         <ProgressBar value={c.facilities} max={100} variant={c.facilities >= 80 ? 'success' : 'warning'} size="sm" />
                       </div>
-                      <div className="min-w-[140px]">
+                      <div className="w-36">
                         <div className={`text-xs ${muted} mb-1`}>Finances</div>
                         <ProgressBar value={c.finances} max={100} variant={c.finances >= 70 ? 'success' : 'warning'} size="sm" />
                       </div>
@@ -2664,7 +2664,7 @@ const visibleAttrGroups = defaultAttrGroups;
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
               <div className={`text-xs ${muted}`}>Date</div>
               <div className={`text-sm font-semibold ${text}`}>{formatISODate(new Date().toISOString())}</div>
@@ -2921,7 +2921,7 @@ const visibleAttrGroups = defaultAttrGroups;
   <div className="flex items-start justify-between mb-4 gap-3">
     <div className="min-w-0">
       <h3 className={`font-semibold ${text}`}>Role Fit</h3>
-      <div className={`text-xs ${muted} mt-1 truncate`}>
+      <div className={`text-xs ${muted} mt-1 break-words`}>
         {ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''} • {roleMode === 'single' ? 'IP only' : `${ipShare}% IP / ${100 - ipShare}% OOP`}
       </div>
     </div>
@@ -3108,7 +3108,7 @@ const visibleAttrGroups = defaultAttrGroups;
 
         
 {activeTab === 'attributes' && (
-  <div className="grid grid-cols-3 gap-5">
+  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
     {(() => {
       const columns = buildFm26AttributeColumns(isGKPlayer, visibleAttrGroups || []);
 
@@ -3335,7 +3335,7 @@ const visibleAttrGroups = defaultAttrGroups;
                 }).sort((a, b) => b.fit - a.fit);
                 
                 return (
-                  <Card dark={dark} className="p-5 col-span-2">
+                  <Card dark={dark} className="p-5 lg:col-span-2">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className={`font-semibold ${text}`}>Role Rating</h3>
@@ -3424,10 +3424,10 @@ const visibleAttrGroups = defaultAttrGroups;
 
 
         {activeTab === 'transfer' && (
-          <div className="grid grid-cols-3 gap-5">
-            <Card dark={dark} className="p-5 col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 lg:col-span-2">
               <h3 className={`font-semibold ${text} mb-4`}>Deal Snapshot</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
                   { label: 'Market value', value: player.value || '—' },
                   { label: 'Wage', value: contract.wage || '—' },
@@ -3466,8 +3466,8 @@ const visibleAttrGroups = defaultAttrGroups;
         )}
 
         {activeTab === 'report' && (
-          <div className="grid grid-cols-3 gap-5">
-            <Card dark={dark} className="p-5 col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 lg:col-span-2">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
                   <h3 className={`font-semibold ${text}`}>Scout Report</h3>
@@ -3546,7 +3546,7 @@ const visibleAttrGroups = defaultAttrGroups;
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'}`}>
                   <div className={`text-xs ${muted} mb-2`}>Recommendation</div>
                   <select
@@ -3599,7 +3599,7 @@ const visibleAttrGroups = defaultAttrGroups;
                   <div className={`mt-3 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-950/30' : 'bg-slate-50'}`}>
                     <div className={`text-xs ${muted}`}>Role Fit</div>
                     <div className={`text-sm font-semibold ${text}`}>{roleScore.total} <span className={muted}>({roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta})</span></div>
-                    <div className={`text-xs ${muted} mt-1 truncate`}>{ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''}</div>
+                    <div className={`text-xs ${muted} mt-1 break-words`}>{ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''}</div>
                   </div>
                 </div>
               </div>
@@ -3776,7 +3776,7 @@ const visibleAttrGroups = defaultAttrGroups;
                   <div className={`text-sm font-semibold ${text}`}>{roleScore.total}</div>
                   <Badge variant={roleScoreDelta >= 0 ? 'success' : 'danger'} size="xs">{roleScoreDelta >= 0 ? `+${roleScoreDelta}` : roleScoreDelta}</Badge>
                 </div>
-                <div className={`text-xs ${muted} mt-1 truncate`}>{ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''}</div>
+                <div className={`text-xs ${muted} mt-1 break-words`}>{ipRole?.name}{roleMode === 'pair' ? ` ↔ ${oopRole?.name}` : ''}</div>
               </div>
 
               <div className={`p-4 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} mt-4`}>
@@ -3800,8 +3800,8 @@ const visibleAttrGroups = defaultAttrGroups;
 
 
         {activeTab === 'development' && (
-          <div className="grid grid-cols-3 gap-5">
-            <Card dark={dark} className="p-5 col-span-2 border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <Card dark={dark} className="p-5 lg:col-span-2 border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
               <div className="flex items-center gap-2 mb-4">
                 <Crown size={16} className="text-amber-500" />
                 <h3 className={`font-semibold ${text}`}>Development Forecast</h3>
@@ -3809,7 +3809,7 @@ const visibleAttrGroups = defaultAttrGroups;
               </div>
               <div className={`text-sm ${muted}`}>The full development model is coming later. This panel will eventually show growth curves, training impact and scenario planning.</div>
 
-              <div className="grid grid-cols-3 gap-4 mt-5">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
                 {[
                   { label: 'Peak age', value: '27 (est.)' },
                   { label: 'Progress rate', value: 'Fast (est.)' },
@@ -4203,7 +4203,7 @@ const ComparisonScreen = ({
 
   const gridStyle = useMemo(
     () => ({
-      gridTemplateColumns: `240px repeat(${Math.max(1, comparedPlayers.length)}, minmax(220px, 1fr))`,
+      gridTemplateColumns: `180px repeat(${Math.max(1, comparedPlayers.length)}, minmax(160px, 1fr))`,
     }),
     [comparedPlayers.length]
   );
@@ -4228,13 +4228,13 @@ const ComparisonScreen = ({
             </div>
 
             <button
-              className={`text-sm font-semibold ${text} hover:underline truncate`}
+              className={`text-sm font-semibold ${text} hover:underline break-words`}
               onClick={() => onSelectPlayer?.(p.id)}
               title="Open profile"
             >
               {p.name}
             </button>
-            <div className={`text-xs ${muted} truncate mt-0.5`}>{p.positionsLabel || p.pos} • {p.club}</div>
+            <div className={`text-xs ${muted} break-words mt-0.5`}>{p.positionsLabel || p.pos} • {p.club}</div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -4262,7 +4262,7 @@ const ComparisonScreen = ({
           </div>
           <div className={`rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'} p-2`}>
             <div className={`text-[10px] ${muted}`}>Value</div>
-            <div className={`text-xs font-semibold ${text} truncate`}>{p.value || '—'}</div>
+            <div className={`text-xs font-semibold ${text} break-words`}>{p.value || '—'}</div>
           </div>
         </div>
 
@@ -4321,8 +4321,8 @@ const ComparisonScreen = ({
                     className={`w-full px-3 py-2 text-left text-xs ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'} flex items-center justify-between gap-2`}
                   >
                     <div className="min-w-0">
-                      <div className={`font-medium ${text} truncate`}>{c.name}</div>
-                      <div className={`text-[10px] ${muted} truncate`}>{c.id} • {c.positionsLabel || c.pos} • {c.club}</div>
+                      <div className={`font-medium ${text} break-words`}>{c.name}</div>
+                      <div className={`text-[10px] ${muted} break-words`}>{c.id} • {c.positionsLabel || c.pos} • {c.club}</div>
                     </div>
                     <Badge variant="default" size="xs" dark={dark}>{c.value}</Badge>
                   </button>
@@ -4359,7 +4359,7 @@ const ComparisonScreen = ({
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {/* Add player */}
-            <div className={`relative flex items-center gap-2 px-3 py-2 rounded-2xl border ${border} ${dark ? 'bg-slate-900/30' : 'bg-white'} min-w-[320px]`}>
+            <div className={`relative flex items-center gap-2 px-3 py-2 rounded-2xl border ${border} ${dark ? 'bg-slate-900/30' : 'bg-white'} w-80 max-w-full`}>
               <Search size={16} className={muted} />
               <input
                 value={addQuery}
@@ -4385,8 +4385,8 @@ const ComparisonScreen = ({
                       className={`w-full px-4 py-3 text-left ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'} flex items-center justify-between gap-3`}
                     >
                       <div className="min-w-0">
-                        <div className={`text-sm font-medium ${text} truncate`}>{c.name}</div>
-                        <div className={`text-[11px] ${muted} truncate`}>{c.id} • {c.positionsLabel || c.pos} • {c.club}</div>
+                        <div className={`text-sm font-medium ${text} break-words`}>{c.name}</div>
+                        <div className={`text-[11px] ${muted} break-words`}>{c.id} • {c.positionsLabel || c.pos} • {c.club}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="default" size="xs" dark={dark}>{c.value}</Badge>
@@ -4444,8 +4444,8 @@ const ComparisonScreen = ({
                           className={`w-full px-4 py-3 text-left ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'} flex items-center justify-between gap-3`}
                         >
                           <div className="min-w-0">
-                            <div className={`text-sm font-medium ${text} truncate`}>Slot {slot}: {p.name}</div>
-                            <div className={`text-[11px] ${muted} truncate`}>{p.positionsLabel || p.pos} • {p.club} • CA {p.ca} / PA {p.pa}</div>
+                            <div className={`text-sm font-medium ${text} break-words`}>Slot {slot}: {p.name}</div>
+                            <div className={`text-[11px] ${muted} break-words`}>{p.positionsLabel || p.pos} • {p.club} • CA {p.ca} / PA {p.pa}</div>
                           </div>
                           <Badge variant="success" size="xs">Make Base</Badge>
                         </button>
@@ -4538,8 +4538,8 @@ const ComparisonScreen = ({
                           className={`w-full px-4 py-3 text-left ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'} flex items-center justify-between gap-3`}
                         >
                           <div className="min-w-0">
-                            <div className={`text-sm font-medium ${text} truncate`}>{c.name}</div>
-                            <div className={`text-[11px] ${muted} truncate`}>{c.id} • {c.positionsLabel || c.pos} • {c.club}</div>
+                            <div className={`text-sm font-medium ${text} break-words`}>{c.name}</div>
+                            <div className={`text-[11px] ${muted} break-words`}>{c.id} • {c.positionsLabel || c.pos} • {c.club}</div>
                           </div>
                           <Badge variant="default" size="xs" dark={dark}>{c.value}</Badge>
                         </button>
@@ -4771,8 +4771,8 @@ const RatingDesignerScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-5 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 lg:col-span-1">
           <RolePairSelector
             dark={dark}
             mode={mode}
@@ -4837,7 +4837,7 @@ const RatingDesignerScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <div className="col-span-2 grid grid-cols-2 gap-6">
+        <div className="lg:col-span-2 grid grid-cols-2 gap-6">
           <CoefficientEditor
             dark={dark}
             title="Coefficient Editor — IP"
@@ -4919,8 +4919,8 @@ const HistoryPointsScreen = ({ dark, players = SAMPLE_PLAYERS, historyPoints = [
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-6 col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4 gap-3">
             <div>
               <h3 className={`font-semibold ${text}`}>Timeline (CA)</h3>
@@ -4961,7 +4961,7 @@ const HistoryPointsScreen = ({ dark, players = SAMPLE_PLAYERS, historyPoints = [
                 })}
               </svg>
 
-              <div className="grid grid-cols-3 gap-4 mt-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                 {points.slice(-3).map(p => (
                   <div key={p.id} className={`p-3 rounded-xl ${dark ? 'bg-slate-800/60' : 'bg-slate-50'} border ${border}`}>
                     <div className={`text-xs ${muted}`}>{formatISODate(p.dateISO)}</div>
@@ -5047,8 +5047,8 @@ const StaffInterfaceScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-5 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 lg:col-span-1">
           <h3 className={`font-semibold ${text} mb-4`}>Role presets</h3>
           <div className="space-y-2">
             {['Head of Youth', 'Assistant Manager', 'Scout', 'Physio'].map((p) => (
@@ -5068,7 +5068,7 @@ const StaffInterfaceScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-5 col-span-2">
+        <Card dark={dark} className="p-5 lg:col-span-2">
           <h3 className={`font-semibold ${text} mb-4`}>Suggested staff</h3>
           <div className="grid grid-cols-2 gap-4">
             {staff.map((s) => (
@@ -5084,7 +5084,7 @@ const StaffInterfaceScreen = ({ dark }) => {
 
                 <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
                   <div className={`text-xs ${muted} uppercase tracking-wider mb-2`}>Key stars</div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     {Object.entries(s).filter(([k]) => !['name','role','nation','rep'].includes(k)).slice(0,3).map(([k,v]) => (
                       <div key={k} className="text-center">
                         <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{k}</div>
@@ -5143,7 +5143,7 @@ const ClubInterfaceScreen = ({ dark }) => {
             <div className={`text-xl font-bold ${text}`}>Brighton</div>
             <div className={`text-sm ${muted}`}>England • Premier League</div>
 
-            <div className="grid grid-cols-3 gap-4 mt-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
               {[
                 { label: 'Stadium', value: '31,800' },
                 { label: 'Training', value: '85/100' },
@@ -5156,7 +5156,7 @@ const ClubInterfaceScreen = ({ dark }) => {
               ))}
             </div>
           </div>
-          <div className="min-w-[220px]">
+          <div className="w-56 shrink-0">
             <div className={`text-xs ${muted} mb-2`}>Finances (balance vs budget)</div>
             <ProgressBar value={72} max={100} variant="success" size="lg" />
             <div className={`text-xs ${muted} mt-2`}>Healthy balance • room to spend</div>
@@ -5183,8 +5183,8 @@ const ClubInterfaceScreen = ({ dark }) => {
       </div>
 
       {tab !== 'tactics' ? (
-        <div className="grid grid-cols-3 gap-6">
-          <Card dark={dark} className="p-5 col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card dark={dark} className="p-5 lg:col-span-2">
             <h3 className={`font-semibold ${text} mb-4`}>Club overview</h3>
             <div className="grid grid-cols-2 gap-4">
               {[
@@ -5217,8 +5217,8 @@ const ClubInterfaceScreen = ({ dark }) => {
           </Card>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-6">
-          <Card dark={dark} className="p-5 col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card dark={dark} className="p-5 lg:col-span-2">
             <h3 className={`font-semibold ${text} mb-4`}>Formation board</h3>
             <div className={`p-5 rounded-2xl border ${border} ${dark ? 'bg-emerald-500/5' : 'bg-emerald-50'} relative overflow-hidden`}>
               <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
@@ -5340,8 +5340,8 @@ const TopListsScreen = ({ dark }) => {
       </div>
 
       <Card dark={dark} className="p-5 mb-6">
-        <div className="grid grid-cols-3 gap-6 items-start">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2">
             <RolePairSelector
               dark={dark}
               compact={false}
@@ -5484,8 +5484,8 @@ const RoleFinderScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-6 col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className={`font-semibold ${text}`}>Tactic</h3>
             <div className="flex gap-2">
@@ -5567,8 +5567,8 @@ const SquadGapAnalyzerScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-6 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className={`text-sm font-semibold ${text}`}>Tactic</div>
@@ -5608,7 +5608,7 @@ const SquadGapAnalyzerScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-6 col-span-2">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className={`text-sm font-semibold ${text}`}>Detected Gaps</div>
@@ -5680,8 +5680,8 @@ const ReplacementFinderScreen = ({ dark }) => {
       </div>
 
       <Card dark={dark} className="p-5 mb-6">
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-1">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
             <div className={`text-xs ${muted} mb-1`}>Outgoing</div>
             <select
               value={outgoing}
@@ -5693,7 +5693,7 @@ const ReplacementFinderScreen = ({ dark }) => {
             <div className={`text-xs ${muted} mt-2`}>Auto-loads the matching Rating Engine preset + contract constraints.</div>
           </div>
 
-          <div className="col-span-2 grid grid-cols-3 gap-3">
+          <div className="lg:col-span-2 grid grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               { k: 'Budget', v: '€40M' },
               { k: 'Age cap', v: '≤ 25' },
@@ -5783,8 +5783,8 @@ const ShortlistOptimizerScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-6 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 lg:col-span-1">
           <div className={`text-sm font-semibold ${text} mb-2`}>Constraints</div>
           <div className="space-y-3">
             {[
@@ -5800,7 +5800,7 @@ const ShortlistOptimizerScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-6 col-span-2">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className={`text-sm font-semibold ${text}`}>Recommended Set</div>
@@ -5870,8 +5870,8 @@ const DealIntelligenceScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-6 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 lg:col-span-1">
           <div className={`text-sm font-semibold ${text} mb-2`}>Target snapshot</div>
           <div className="space-y-3">
             {[
@@ -5888,7 +5888,7 @@ const DealIntelligenceScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-6 col-span-2">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <div className={`text-sm font-semibold ${text} mb-4`}>Signals</div>
           <div className="space-y-3">
             {signals.map((s) => (
@@ -6027,8 +6027,8 @@ const RadarScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-5 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 lg:col-span-1">
           <h3 className={`font-semibold ${text} mb-4`}>Filters</h3>
           <div className="space-y-3">
             {['Budget', 'Needs', 'Age', 'Position'].map((f) => (
@@ -6043,7 +6043,7 @@ const RadarScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-5 col-span-2">
+        <Card dark={dark} className="p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className={`font-semibold ${text}`}>Opportunities</h3>
             <Badge variant="primary">{items.length} cards</Badge>
@@ -6112,8 +6112,8 @@ const TransferPlanScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-6 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-6 lg:col-span-1">
           <h3 className={`font-semibold ${text} mb-4`}>Constraints</h3>
           <div className="space-y-3">
             {[
@@ -6142,7 +6142,7 @@ const TransferPlanScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-6 col-span-2">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <h3 className={`font-semibold ${text} mb-4`}>Bundles</h3>
           <div className="grid grid-cols-2 gap-4">
             {['Plan A', 'Plan B'].map((plan) => (
@@ -6205,8 +6205,8 @@ const PresetMarketplaceScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-5 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 lg:col-span-1">
           <h3 className={`font-semibold ${text} mb-4`}>Library</h3>
           <div className="space-y-2">
             {presets.map((p) => (
@@ -6228,7 +6228,7 @@ const PresetMarketplaceScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-5 col-span-2">
+        <Card dark={dark} className="p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className={`font-semibold ${text}`}>Preview</h3>
             {presets.find(p => p.id === selected)?.warn ? <Badge variant="warning">Compatibility warning</Badge> : <Badge variant="success">Compatible</Badge>}
@@ -6288,8 +6288,8 @@ const ProReportsScreen = ({ dark }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card dark={dark} className="p-5 col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card dark={dark} className="p-5 lg:col-span-1">
           <h3 className={`font-semibold ${text} mb-4`}>Template</h3>
           <div className="space-y-2">
             {[
@@ -6305,7 +6305,7 @@ const ProReportsScreen = ({ dark }) => {
           </div>
         </Card>
 
-        <Card dark={dark} className="p-5 col-span-2">
+        <Card dark={dark} className="p-5 lg:col-span-2">
           <h3 className={`font-semibold ${text} mb-4`}>Preview</h3>
           <div className={`p-5 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-white'} min-h-[260px]`}>
             <div className={`text-sm font-semibold ${text}`}>{template === 'quick' ? 'Quick Card' : template === 'full' ? 'Full Dossier' : 'Bundle Pack'}</div>
@@ -6387,9 +6387,9 @@ const LoadingStatesScreen = ({ dark }) => {
           </div>
           <div className="flex gap-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-8 flex-1 rounded-lg" dark={dark} />)}</div>
         </Card>
-        <Card dark={dark} className="p-6 col-span-2">
+        <Card dark={dark} className="p-6 lg:col-span-2">
           <h3 className={`font-semibold ${text} mb-4`}>Empty States</h3>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <EmptyState icon={Search} title="No results found" description="Try adjusting your filters" action={<Button variant="secondary" size="sm" dark={dark}>Clear Filters</Button>} dark={dark} />
             <EmptyState icon={List} title="No shortlists yet" description="Create your first shortlist" action={<Button variant="primary" size="sm" icon={Plus}>Create</Button>} dark={dark} />
             <EmptyState icon={History} title="No history points" description="Track player development" action={<Button variant="secondary" size="sm" dark={dark} icon={Plus}>Create</Button>} dark={dark} />
