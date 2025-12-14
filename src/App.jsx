@@ -3284,42 +3284,110 @@ const visibleAttrGroups = defaultAttrGroups;
 
         
 {activeTab === 'attributes' && (
-  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-    {(() => {
-      const columns = buildFm26AttributeColumns(isGKPlayer, visibleAttrGroups || []);
+  <div className="overflow-x-auto">
+    <div className={`min-w-[600px] ${dark ? 'bg-slate-900/80' : 'bg-white'}`}>
+      {(() => {
+        const columnConfig = isGKPlayer ? [
+          { 
+            mainGroup: 'Goalkeeping', 
+            mainLabel: 'Goalkeeping',
+            subGroups: [
+              { group: 'Technical', label: 'Technical' },
+              { group: 'Set Pieces', label: 'Set Pieces' }
+            ]
+          },
+          { 
+            mainGroup: 'Mental', 
+            mainLabel: 'Mental Attributes',
+            subGroups: [{ group: 'Mental Traits', label: 'Mental Traits' }]
+          },
+          { 
+            mainGroup: 'Physical', 
+            mainLabel: 'Physical Attributes',
+            subGroups: [{ group: 'Hidden', label: 'Hidden Attributes' }]
+          },
+        ] : [
+          { 
+            mainGroup: 'Technical', 
+            mainLabel: 'Technical Attributes',
+            subGroups: [{ group: 'Set Pieces', label: 'Set Pieces' }]
+          },
+          { 
+            mainGroup: 'Mental', 
+            mainLabel: 'Mental Attributes',
+            subGroups: [{ group: 'Mental Traits', label: 'Mental Traits' }]
+          },
+          { 
+            mainGroup: 'Physical', 
+            mainLabel: 'Physical Attributes',
+            subGroups: [{ group: 'Hidden', label: 'Hidden Attributes' }]
+          },
+        ];
 
-      return columns.map((col, colIdx) => (
-        <div key={`attr_col_${colIdx}`} className="space-y-5">
-          {col.map((groupName) => {
-            const items = attributeGroups?.[groupName] || [];
+        const renderAttrRow = (attr, groupName, isOdd) => {
+          const tooltip = getAttributeTooltip(attr.key, groupName);
+          return (
+            <div 
+              key={attr.key} 
+              className={`flex items-center justify-between py-0.5 px-2 ${isOdd ? (dark ? 'bg-slate-800/30' : 'bg-slate-50') : ''}`}
+            >
+              <AttributeTooltip label={attr.label} tooltip={tooltip}>
+                <span className={`text-[13px] ${dark ? 'text-slate-200' : 'text-slate-700'}`}>{attr.label}</span>
+              </AttributeTooltip>
+              <AttributeValue value={attr.value} size="sm" />
+            </div>
+          );
+        };
 
-            return (
-              <Card key={groupName} dark={dark} className="p-4">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/30">
-                  {groupName === 'Goalkeeping' ? <GKIcon size={14} /> : null}
-                  <h3 className={`text-sm font-semibold ${text}`}>{groupName}</h3>
-                  <Badge variant="default" dark={dark} size="xs">{items.length}</Badge>
-                </div>
-                <div className="space-y-1">
-                  {items.map(({ label, value, key }) => {
-                    const tooltip = getAttributeTooltip(key, groupName);
+        const renderSectionHeader = (label, isSubSection = false) => (
+          <div className={`px-2 py-0.5 ${isSubSection ? 'mt-0.5 border-t' : 'border-b'} ${dark ? 'bg-slate-800/80 border-slate-600/50' : 'bg-slate-100 border-slate-300'}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider ${dark ? 'text-amber-400/90' : 'text-slate-600'}`}>
+              {label}
+            </span>
+          </div>
+        );
+
+        return (
+          <div className={`grid grid-cols-3 ${dark ? 'divide-slate-600/50' : 'divide-slate-300'} divide-x`}>
+            {columnConfig.map((col, colIdx) => {
+              const mainItems = attributeGroups?.[col.mainGroup] || [];
+              let rowIndex = 0;
+              
+              return (
+                <div key={colIdx} className="min-w-0">
+                  {renderSectionHeader(col.mainLabel)}
+                  <div>
+                    {mainItems.map((attr) => {
+                      const isOdd = rowIndex % 2 === 1;
+                      rowIndex++;
+                      return renderAttrRow(attr, col.mainGroup, isOdd);
+                    })}
+                  </div>
+                  
+                  {col.subGroups.map((sub) => {
+                    const subItems = attributeGroups?.[sub.group] || [];
+                    if (subItems.length === 0) return null;
+                    
                     return (
-                      <div key={key} className="flex items-center justify-between py-1.5 px-2 rounded-lg odd:bg-slate-800/30">
-                        <AttributeTooltip label={label} tooltip={tooltip}>
-                          <span className={`text-sm ${muted}`}>{label}</span>
-                          {tooltip && <Info size={12} className="text-slate-500 ml-1" />}
-                        </AttributeTooltip>
-                        <AttributeValue value={value} size="sm" />
+                      <div key={sub.group}>
+                        {renderSectionHeader(sub.label, true)}
+                        <div>
+                          {subItems.map((attr) => {
+                            const isOdd = rowIndex % 2 === 1;
+                            rowIndex++;
+                            return renderAttrRow(attr, sub.group, isOdd);
+                          })}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      ));
-    })()}
+              );
+            })}
+          </div>
+        );
+      })()}
+    </div>
   </div>
 )}
 
