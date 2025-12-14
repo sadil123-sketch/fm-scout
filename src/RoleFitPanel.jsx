@@ -159,8 +159,8 @@ function RoleRow({ role, fit }) {
   const colors = fit.tierColor;
   
   return (
-    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-zinc-900/60 border border-zinc-800/50">
-      <div className={`text-sm font-medium ${colors.text}`}>
+    <div className="py-2 px-3 rounded-lg bg-zinc-900/60 border border-zinc-800/50">
+      <div className={`text-xs font-medium ${colors.text} whitespace-nowrap`}>
         {role.displayName} - {fit.percentage}% - {fit.tier}
       </div>
     </div>
