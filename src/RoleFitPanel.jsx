@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import { ROLE_DEFINITIONS_FM26 } from "./fm26RoleDefinitions.js";
 import { computeRoleFit, getTierColor } from "./roleFit.js";
 
@@ -43,7 +43,7 @@ const getRolesForPositionGroups = (positionGroups) => {
   return ROLE_DEFINITIONS_FM26.filter(r => positionGroups.includes(r.positionGroup));
 };
 
-export default function RoleFitPanel({ player, positionGroup }) {
+export default function RoleFitPanel({ player, positionGroup, selectedRoleId, onRoleSelect }) {
   const mappedGroups = useMemo(() => mapPositionToGroups(positionGroup), [positionGroup]);
   const allRoles = useMemo(() => getRolesForPositionGroups(mappedGroups), [mappedGroups]);
   
@@ -68,6 +68,52 @@ export default function RoleFitPanel({ player, positionGroup }) {
 
   const bestIP = ipFits[0];
   const bestOOP = oopFits[0];
+
+  const bestOverall = useMemo(() => {
+    if (!bestIP && !bestOOP) return null;
+    if (!bestIP) return bestOOP;
+    if (!bestOOP) return bestIP;
+    return bestIP.fit.percentage >= bestOOP.fit.percentage ? bestIP : bestOOP;
+  }, [bestIP, bestOOP]);
+
+  const prevPlayerIdRef = React.useRef(player?.id);
+  const prevPositionGroupRef = React.useRef(positionGroup);
+  const hasInitializedRef = React.useRef(false);
+
+  useEffect(() => {
+    const playerChanged = prevPlayerIdRef.current !== player?.id;
+    const positionChanged = prevPositionGroupRef.current !== positionGroup;
+    
+    if (playerChanged || positionChanged) {
+      prevPlayerIdRef.current = player?.id;
+      prevPositionGroupRef.current = positionGroup;
+      hasInitializedRef.current = true;
+      if (bestOverall) {
+        onRoleSelect?.(bestOverall.role, bestOverall.fit);
+      } else {
+        onRoleSelect?.(null, null);
+      }
+    } else if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      if (bestOverall) {
+        onRoleSelect?.(bestOverall.role, bestOverall.fit);
+      } else {
+        onRoleSelect?.(null, null);
+      }
+    }
+  }, [bestOverall, player?.id, positionGroup]);
+
+  const handleRoleClick = (role, fit) => {
+    onRoleSelect?.(role, fit);
+  };
+
+  const handleResetToTopFit = () => {
+    if (bestOverall) {
+      onRoleSelect?.(bestOverall.role, bestOverall.fit);
+    }
+  };
+
+  const isTopFitSelected = selectedRoleId === bestOverall?.role?.id;
 
   const displayPositionGroup = positionGroup === 'ALL' ? 'All Positions' : (positionGroup || 'Position');
 
@@ -95,16 +141,32 @@ export default function RoleFitPanel({ player, positionGroup }) {
       )}
 
       {(bestIP || bestOOP) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {!isTopFitSelected && (
+            <button
+              type="button"
+              onClick={handleResetToTopFit}
+              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              Reset to Top Fit
+            </button>
+          )}
           <RolePhaseSection 
             title="In Possession (IP)" 
             description="How well the player performs when the team has the ball"
-            fits={ipFits} 
+            fits={ipFits}
+            selectedRoleId={selectedRoleId}
+            onRoleClick={handleRoleClick}
           />
           <RolePhaseSection 
             title="Out of Possession (OOP)" 
             description="How well the player performs when defending"
-            fits={oopFits} 
+            fits={oopFits}
+            selectedRoleId={selectedRoleId}
+            onRoleClick={handleRoleClick}
           />
         </div>
       )}
@@ -127,7 +189,7 @@ function BestRoleCard({ label, role, fit }) {
   );
 }
 
-function RolePhaseSection({ title, description, fits }) {
+function RolePhaseSection({ title, description, fits, selectedRoleId, onRoleClick }) {
   if (!fits.length) {
     return (
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
@@ -148,22 +210,42 @@ function RolePhaseSection({ title, description, fits }) {
       
       <div className="space-y-2">
         {topFive.map(({ role, fit }) => (
-          <RoleRow key={role.id} role={role} fit={fit} />
+          <RoleRow 
+            key={role.id} 
+            role={role} 
+            fit={fit}
+            isSelected={selectedRoleId === role.id}
+            onClick={() => onRoleClick?.(role, fit)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function RoleRow({ role, fit }) {
+function RoleRow({ role, fit, isSelected, onClick }) {
   const colors = fit.tierColor;
   
   return (
-    <div className="py-2 px-3 rounded-lg bg-zinc-900/60 border border-zinc-800/50">
-      <div className={`text-xs font-medium ${colors.text} whitespace-nowrap`}>
-        {role.displayName} - {fit.percentage}% - {fit.tier}
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full py-2 px-3 rounded-lg border transition-all text-left ${
+        isSelected 
+          ? `${colors.bg} ${colors.border} ring-1 ring-offset-1 ring-offset-zinc-900 ${colors.border.replace('border-', 'ring-')}`
+          : 'bg-zinc-900/60 border-zinc-800/50 hover:bg-zinc-800/60 hover:border-zinc-700/50'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-sm font-medium truncate ${isSelected ? colors.text : 'text-zinc-200'}`}>
+          {role.displayName}
+        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-sm font-bold ${colors.text}`}>{fit.percentage}%</span>
+          <TierBadge tier={fit.tier} percentage={fit.percentage} size="sm" />
+        </div>
       </div>
-    </div>
+    </button>
   );
 }
 

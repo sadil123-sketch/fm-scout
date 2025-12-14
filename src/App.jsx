@@ -2488,11 +2488,20 @@ const PlayerProfileScreen = ({
     return list?.[0] || player?.pos || '';
   });
   const [showPotentialRating, setShowPotentialRating] = useState(false);
+  const [selectedRole, setSelectedRole] = useState(null);
 
   useEffect(() => {
     const list = parsePositionsLabel(player?.positionsLabel, player?.pos);
     setSelectedPosition(list?.[0] || player?.pos || '');
   }, [player?.id, player?.positionsLabel, player?.pos]);
+
+  const handleRoleSelect = (role, fit) => {
+    if (role && fit) {
+      setSelectedRole({ role, fit });
+    } else {
+      setSelectedRole(null);
+    }
+  };
 
 // Attribute groups (FM26) — defaults depend on GK vs outfield.
 const isGKPlayer = isGoalkeeperPlayer(player);
@@ -3084,18 +3093,67 @@ const visibleAttrGroups = defaultAttrGroups;
             </div>
 
             <div className="grid grid-cols-2 gap-5">
-              <RoleFitPanel player={{ ...player, attributes: player.attrs }} positionGroup={activeRoleGroup} />
+              <RoleFitPanel player={{ ...player, attributes: player.attrs }} positionGroup={activeRoleGroup} selectedRoleId={selectedRole?.role?.id} onRoleSelect={handleRoleSelect} />
 
               <Card dark={dark} className="p-5">
-                <h3 className={`font-semibold ${text} mb-4`}>Key Attributes</h3>
-                <div className="space-y-3">
-                  {keyAttrs.slice(0, 6).map((attr) => (
-                    <div key={attr.key} className="flex items-center gap-3">
-                      <span className={`text-sm ${muted} flex-1`}>{attr.name}</span>
-                      <div className="w-24"><ProgressBar value={attr.value} max={20} variant={attr.value >= 17 ? 'success' : 'warning'} size="sm" /></div>
-                      <AttributeValue value={attr.value} size="sm" />
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`font-semibold ${text}`}>Key Attributes</h3>
+                  {selectedRole?.role && (
+                    <span className="text-xs text-blue-400">{selectedRole.role.displayName}</span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {(() => {
+                    const role = selectedRole?.role;
+                    const keyAttrsSet = new Set((role?.keyAttributes || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
+                    const prefAttrsSet = new Set((role?.preferredAttributes || []).map(a => a.toLowerCase().replace(/\s+/g, '')));
+                    
+                    const roleAttrs = [...(role?.keyAttributes || []), ...(role?.preferredAttributes || [])];
+                    const fm26ToCamel = Object.fromEntries(
+                      Object.entries(CAMEL_TO_FM26_ATTR_MAP).map(([camel, fm26]) => [fm26.toLowerCase().replace(/\s+/g, ''), camel])
+                    );
+                    
+                    const attrsToShow = roleAttrs.length > 0 
+                      ? roleAttrs.slice(0, 8).map(fm26Name => {
+                          const normalized = fm26Name.toLowerCase().replace(/\s+/g, '');
+                          const camelKey = fm26ToCamel[normalized] || fm26Name;
+                          return {
+                            key: camelKey,
+                            name: fm26Name,
+                            value: a[camelKey],
+                            isKey: keyAttrsSet.has(normalized),
+                            isPreferred: prefAttrsSet.has(normalized),
+                          };
+                        }).filter(x => typeof x.value === 'number')
+                      : keyAttrs.slice(0, 6).map(attr => ({
+                          ...attr,
+                          isKey: false,
+                          isPreferred: false,
+                        }));
+                    
+                    return attrsToShow.map((attr) => (
+                      <div key={attr.key} className={`flex items-center gap-3 py-1.5 px-2 rounded-lg ${
+                        attr.isKey ? 'bg-emerald-500/10 border border-emerald-500/30' :
+                        attr.isPreferred ? 'bg-blue-500/10 border border-blue-500/20' :
+                        'bg-transparent'
+                      }`}>
+                        <span className={`text-sm flex-1 ${
+                          attr.isKey ? 'font-semibold text-emerald-400' :
+                          attr.isPreferred ? 'text-blue-300' :
+                          muted
+                        }`}>{attr.name}</span>
+                        <div className="w-24">
+                          <ProgressBar 
+                            value={attr.value} 
+                            max={20} 
+                            variant={attr.isKey ? 'success' : attr.value >= 15 ? 'success' : 'warning'} 
+                            size="sm" 
+                          />
+                        </div>
+                        <AttributeValue value={attr.value} size="sm" />
+                      </div>
+                    ));
+                  })()}
                 </div>
                 <div className={`mt-4 p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/10' : 'bg-slate-50'} flex items-center justify-between`}>
                   <div className={`text-xs ${muted}`}>DOB</div>
