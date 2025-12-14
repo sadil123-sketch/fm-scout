@@ -117,9 +117,11 @@ function BestRoleCard({ label, role, fit }) {
   
   return (
     <div className={`rounded-xl border ${colors.border} ${colors.bg} p-4`}>
-      <div className="text-xs text-zinc-400 mb-2">{label}</div>
-      <div className={`font-semibold text-white text-lg`}>
-        {role.displayName} - <span className={colors.text}>{fit.percentage}%</span> - {fit.tier}
+      <div className="text-xs text-zinc-400 mb-1">{label}</div>
+      <div className="font-semibold text-white">{role.displayName}</div>
+      <div className="flex items-center gap-2 mt-2">
+        <span className={`text-2xl font-bold ${colors.text}`}>{fit.percentage}%</span>
+        <TierBadge tier={fit.tier} percentage={fit.percentage} />
       </div>
     </div>
   );
@@ -155,27 +157,11 @@ function RolePhaseSection({ title, description, fits }) {
 
 function RoleRow({ role, fit }) {
   const colors = fit.tierColor;
-  const barColor = fit.percentage >= 90 ? 'bg-emerald-500' 
-    : fit.percentage >= 70 ? 'bg-blue-500'
-    : fit.percentage >= 50 ? 'bg-amber-500'
-    : 'bg-red-500';
   
   return (
     <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-zinc-900/60 border border-zinc-800/50">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <span className="text-sm text-zinc-200 truncate">{role.displayName}</span>
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="w-20 h-2 bg-zinc-800 rounded-full overflow-hidden">
-          <div 
-            className={`h-full rounded-full transition-all ${barColor}`}
-            style={{ width: `${fit.percentage}%` }}
-          />
-        </div>
-        <span className={`text-sm font-medium w-10 text-right ${colors.text}`}>
-          {fit.percentage}%
-        </span>
-        <TierBadge tier={fit.tier} percentage={fit.percentage} size="sm" />
+      <div className={`text-sm font-medium ${colors.text}`}>
+        {role.displayName} - {fit.percentage}% - {fit.tier}
       </div>
     </div>
   );
