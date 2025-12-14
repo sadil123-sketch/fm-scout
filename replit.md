@@ -56,6 +56,26 @@ Premium features gated behind edition check:
 - GS Stats Development Forecast
 - In-Game Scout (IGS)
 
+## Database
+
+### PostgreSQL Database
+The application uses a PostgreSQL database with the following tables:
+- **clubs**: 10 English clubs (Premier League + Championship) with finances, facilities, reputation
+- **players**: 500 players with full FM attributes (technical, mental, physical, goalkeeper, hidden)
+- **staff**: 100 staff members (coaches, scouts, physios) with coaching attributes
+
+### API Server
+Express API server running on port 3001 with endpoints:
+- `GET /api/clubs` - List all clubs
+- `GET /api/players` - List players with filtering (position, club, age, ability)
+- `GET /api/staff` - List staff with filtering (role, club)
+- `GET /api/stats` - Dashboard statistics
+- `GET /api/positions` - Position distribution
+- `GET /api/roles` - Staff role distribution
+
+### Database Commands
+- `npm run seed` - Re-seed the database with sample data
+
 ## External Dependencies
 
 ### Runtime Dependencies
