@@ -39,6 +39,11 @@ Preferred communication style: Simple, everyday language.
 - Clean 3-column grid layout with no collapse/toggle controls
 - Interactive tooltips with FM attribute definitions (hover on Info icon)
 - Context-aware tooltips for shared attributes (e.g., First Touch/Passing have different descriptions for GK)
+- **Attribute Groups** (displayed in order based on player type):
+  - Outfield: Technical, Set Pieces, Mental, Physical, Hidden, Mental Traits
+  - Goalkeepers: Goalkeeping, Mental, Physical, Technical, Set Pieces, Hidden, Mental Traits
+- **Hidden Attributes** (5): Consistency, Dirtiness, Important Matches, Injury Proneness, Versatility
+- **Mental Traits** (8): Adaptability, Ambition, Controversy, Loyalty, Pressure, Professionalism, Sportsmanship, Temperament
 
 ### Key Design Patterns
 
