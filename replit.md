@@ -23,7 +23,14 @@ Preferred communication style: Simple, everyday language.
 **Rating Engine (FM26)**: Phase-aware role fit scoring system that evaluates players based on:
 - Role definitions with Key, Preferred, and Unnecessary attributes
 - In Possession (IP) and Out of Possession (OOP) phase scoring
-- Configurable weights and normalization for consistent 0-20 scale scoring
+- **0-100% percentage scale** with tier labels (Accomplished 90%+, Competent 70-89%, Unconvincing 50-69%, Unsuitable <50%)
+- Attribute key normalization (FM26 Title Case to camelCase mapping)
+
+**Role Fit Panel**: Read-only display showing player's fit for roles at their position:
+- Best IP and OOP role cards with percentage scores and tier badges
+- Complete role list for both phases with progress bars and tier indicators
+- Position-aware filtering based on fm26RoleDefinitions groups
+- No configuration elements - pure data display
 
 **Shortlist System**: Import/export functionality with tagging and notes for player tracking.
 
