@@ -121,6 +121,172 @@ const copyToClipboard = async (textToCopy) => {
 
 const makeId = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
 
+// ============================================
+// API Data Transformation
+// ============================================
+const transformPlayerFromAPI = (apiPlayer) => {
+  const nationFlags = {
+    'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+    'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+    'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+    'Spain': '🇪🇸',
+    'France': '🇫🇷',
+    'Germany': '🇩🇪',
+    'Italy': '🇮🇹',
+    'Portugal': '🇵🇹',
+    'Brazil': '🇧🇷',
+    'Argentina': '🇦🇷',
+  };
+  
+  const formatValue = (val) => {
+    if (!val) return '€0';
+    if (val >= 1000000) return `€${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `€${(val / 1000).toFixed(0)}k`;
+    return `€${val}`;
+  };
+
+  const formatWage = (wage) => {
+    if (!wage) return '€0 p/w';
+    return `€${(wage / 1000).toFixed(0)}k p/w`;
+  };
+
+  return {
+    id: `p_${apiPlayer.id}`,
+    name: `${apiPlayer.first_name} ${apiPlayer.last_name}`,
+    age: apiPlayer.age,
+    dob: apiPlayer.date_of_birth,
+    club: apiPlayer.club_name || 'Free Agent',
+    nation: nationFlags[apiPlayer.nationality] || '🏳️',
+    pos: apiPlayer.primary_position,
+    positionsLabel: apiPlayer.primary_position,
+    ca: apiPlayer.current_ability,
+    pa: apiPlayer.potential_ability,
+    value: formatValue(apiPlayer.value),
+    valueNum: apiPlayer.value || 0,
+    contract: {
+      until: apiPlayer.contract_expiry,
+      wage: formatWage(apiPlayer.wage),
+    },
+    lastUpdated: new Date().toISOString(),
+    foot: apiPlayer.preferred_foot || 'Right',
+    injury: { status: 'fit' },
+    personality: apiPlayer.personality || 'Balanced',
+    mediaHandling: apiPlayer.media_handling || 'Reserved',
+    attrs: {
+      // Technical
+      crossing: apiPlayer.crossing,
+      dribbling: apiPlayer.dribbling,
+      finishing: apiPlayer.finishing,
+      firstTouch: apiPlayer.first_touch,
+      heading: apiPlayer.heading,
+      longShots: apiPlayer.long_shots,
+      marking: apiPlayer.marking,
+      passing: apiPlayer.passing,
+      tackling: apiPlayer.tackling,
+      technique: apiPlayer.technique,
+      // Set Pieces
+      corners: apiPlayer.corners,
+      freeKickTaking: apiPlayer.free_kicks,
+      longThrows: apiPlayer.long_throws,
+      penaltyTaking: apiPlayer.penalty_taking,
+      // Mental
+      aggression: apiPlayer.aggression,
+      anticipation: apiPlayer.anticipation,
+      bravery: apiPlayer.bravery,
+      composure: apiPlayer.composure,
+      concentration: apiPlayer.concentration,
+      decisions: apiPlayer.decisions,
+      determination: apiPlayer.determination,
+      flair: apiPlayer.flair,
+      leadership: apiPlayer.leadership,
+      offTheBall: apiPlayer.off_the_ball,
+      positioning: apiPlayer.positioning,
+      teamwork: apiPlayer.teamwork,
+      vision: apiPlayer.vision,
+      workRate: apiPlayer.work_rate,
+      // Physical
+      acceleration: apiPlayer.acceleration,
+      agility: apiPlayer.agility,
+      balance: apiPlayer.balance,
+      jumpingReach: apiPlayer.jumping_reach,
+      naturalFitness: apiPlayer.natural_fitness,
+      pace: apiPlayer.pace,
+      stamina: apiPlayer.stamina,
+      strength: apiPlayer.strength,
+      // Goalkeeping
+      aerialReach: apiPlayer.aerial_reach,
+      commandOfArea: apiPlayer.command_of_area,
+      communication: apiPlayer.communication,
+      eccentricity: apiPlayer.eccentricity,
+      handling: apiPlayer.handling,
+      kicking: apiPlayer.kicking,
+      oneOnOnes: apiPlayer.one_on_ones,
+      punching: apiPlayer.punching,
+      reflexes: apiPlayer.reflexes,
+      rushingOut: apiPlayer.rushing_out,
+      throwing: apiPlayer.throwing,
+    },
+    form: [7.0, 7.1, 6.9, 7.2, 7.0],
+  };
+};
+
+const transformStaffFromAPI = (apiStaff) => {
+  const nationFlags = {
+    'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+    'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+    'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+    'Portugal': '🇵🇹',
+    'Spain': '🇪🇸',
+    'France': '🇫🇷',
+    'Germany': '🇩🇪',
+    'Italy': '🇮🇹',
+  };
+
+  const calcStars = (val) => val ? Math.min(5, Math.max(1, Math.round(val / 4))) : 2;
+  const calcRepStars = (ca) => ca ? Math.min(5, Math.max(1, Math.round(ca / 40))) : 2;
+
+  return {
+    id: `s_${apiStaff.id}`,
+    name: `${apiStaff.first_name} ${apiStaff.last_name}`,
+    age: apiStaff.age,
+    nation: nationFlags[apiStaff.nationality] || '🏳️',
+    role: apiStaff.role,
+    club: apiStaff.club_name || 'Unemployed',
+    rep: calcRepStars(apiStaff.current_ability),
+    ca: apiStaff.current_ability,
+    stars: {
+      judgePA: calcStars(apiStaff.judging_player_potential),
+      judgeCA: calcStars(apiStaff.judging_player_ability),
+      motiv: calcStars(apiStaff.motivating),
+      tact: calcStars(apiStaff.tactical),
+      man: calcStars(apiStaff.man_management),
+      youth: calcStars(apiStaff.working_with_youngsters),
+      phys: calcStars(apiStaff.physiotherapy),
+      work: calcStars(apiStaff.determination),
+    },
+  };
+};
+
+const transformClubFromAPI = (apiClub) => {
+  return {
+    id: apiClub.id,
+    name: apiClub.name,
+    shortName: apiClub.short_name,
+    country: apiClub.nation || 'England',
+    league: apiClub.league,
+    rep: Math.min(5, Math.max(1, Math.round(apiClub.reputation / 40))),
+    finances: apiClub.balance ? Math.min(100, Math.max(0, Math.round((apiClub.balance / 500000000) * 100))) : 50,
+    facilities: apiClub.training_facilities ? apiClub.training_facilities * 5 : 50,
+    youthFacilities: apiClub.youth_facilities ? apiClub.youth_facilities * 5 : 50,
+    youthRecruitment: apiClub.youth_recruitment ? apiClub.youth_recruitment * 5 : 50,
+    stadium: apiClub.stadium_name,
+    capacity: apiClub.stadium_capacity,
+    playerCount: apiClub.player_count || 0,
+    staffCount: apiClub.staff_count || 0,
+    vacancy: false,
+  };
+};
+
 // Small toast stack used for micro-feedback (copy, added, etc.)
 const ToastStack = ({ toasts, onDismiss, dark }) => {
   if (!toasts?.length) return null;
@@ -4856,17 +5022,34 @@ const HistoryPointsScreen = ({ dark, players = SAMPLE_PLAYERS, historyPoints = [
 // Screen: Staff Interface
 // ============================================
 const StaffInterfaceScreen = ({ dark }) => {
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
   const text = dark ? 'text-white' : 'text-slate-900';
   const muted = dark ? 'text-slate-400' : 'text-slate-500';
   const border = dark ? 'border-slate-700/50' : 'border-slate-200';
   const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
 
-  const staff = [
-    { name: 'Rui Almeida', role: 'Head of Youth Development', nation: '🇵🇹', rep: 4.5, youth: 5, judgePA: 4, working: 5 },
-    { name: 'Daniel Clarke', role: 'Assistant Manager', nation: '🏴', rep: 4.0, motiv: 5, tact: 4, man: 4 },
-    { name: 'Miguel Santos', role: 'Scout', nation: '🇵🇹', rep: 3.5, judgePA: 4, judgeCA: 4, adapt: 4 },
-    { name: 'Alex Chen', role: 'Physio', nation: '🇨🇳', rep: 3.0, phys: 4, rehab: 4, sports: 3 },
-  ];
+  useEffect(() => {
+    const fetchStaff = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/staff?limit=20');
+        if (!response.ok) throw new Error('Failed to fetch staff');
+        const data = await response.json();
+        const transformed = (data.staff || []).map(transformStaffFromAPI);
+        setStaff(transformed);
+      } catch (error) {
+        console.error('Error fetching staff:', error);
+        setStaff([
+          { name: 'Rui Almeida', role: 'Head of Youth Development', nation: '🇵🇹', rep: 4.5, stars: { youth: 5, judgePA: 4, work: 5 } },
+          { name: 'Daniel Clarke', role: 'Assistant Manager', nation: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', rep: 4.0, stars: { motiv: 5, tact: 4, man: 4 } },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStaff();
+  }, []);
 
   return (
     <div className={`flex-1 p-8 overflow-auto ${bg}`}>
@@ -4919,7 +5102,7 @@ const StaffInterfaceScreen = ({ dark }) => {
                 <div className={`p-3 rounded-2xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
                   <div className={`text-xs ${muted} uppercase tracking-wider mb-2`}>Key stars</div>
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    {Object.entries(s).filter(([k]) => !['name','role','nation','rep'].includes(k)).slice(0,3).map(([k,v]) => (
+                    {Object.entries(s.stars || {}).slice(0,3).map(([k,v]) => (
                       <div key={k} className="text-center">
                         <div className={`text-[10px] uppercase tracking-wider ${muted}`}>{k}</div>
                         <div className="flex justify-center mt-1">
@@ -4950,10 +5133,37 @@ const StaffInterfaceScreen = ({ dark }) => {
 // ============================================
 const ClubInterfaceScreen = ({ dark }) => {
   const [tab, setTab] = useState('info');
+  const [clubs, setClubs] = useState([]);
+  const [selectedClub, setSelectedClub] = useState(null);
+  const [loading, setLoading] = useState(true);
   const text = dark ? 'text-white' : 'text-slate-900';
   const muted = dark ? 'text-slate-400' : 'text-slate-500';
   const border = dark ? 'border-slate-700/50' : 'border-slate-200';
   const bg = dark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-white';
+
+  useEffect(() => {
+    const fetchClubs = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/clubs');
+        if (!response.ok) throw new Error('Failed to fetch clubs');
+        const data = await response.json();
+        const transformed = data.map(transformClubFromAPI);
+        setClubs(transformed);
+        if (transformed.length > 0) {
+          setSelectedClub(transformed[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching clubs:', error);
+        setSelectedClub({ name: 'Brighton', shortName: 'BHA', league: 'Premier League', rep: 4.0, finances: 72, facilities: 85, playerCount: 25, staffCount: 10 });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchClubs();
+  }, []);
+
+  const club = selectedClub || { name: 'Loading...', shortName: '', league: '', rep: 0, finances: 0, facilities: 0, playerCount: 0, staffCount: 0 };
 
   return (
     <div className={`flex-1 p-8 overflow-auto ${bg}`}>
@@ -4974,7 +5184,7 @@ const ClubInterfaceScreen = ({ dark }) => {
             <Trophy size={28} className="text-blue-500" />
           </div>
           <div className="flex-1">
-            <div className={`text-xl font-bold ${text}`}>Brighton</div>
+            <div className={`text-xl font-bold ${text}`}>{club.name}</div>
             <div className={`text-sm ${muted}`}>England • Premier League</div>
 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
@@ -6243,8 +6453,39 @@ export default function FMGenieScoutPrototype() {
   const [gameLoaded, setGameLoaded] = useState(false);
 
   // Shared app state (Phase 1): Search → Profile navigation + shared player dataset
-  const [players] = useState(() => SAMPLE_PLAYERS.map(enrichPlayerForAttributeGroups));
-  const [selectedPlayerId, setSelectedPlayerId] = useState(SAMPLE_PLAYERS?.[0]?.id || null);
+  const [players, setPlayers] = useState([]);
+  const [playersLoading, setPlayersLoading] = useState(true);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+
+  // Fetch players from API on mount
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        setPlayersLoading(true);
+        const response = await fetch('/api/players?limit=100');
+        if (!response.ok) throw new Error('Failed to fetch players');
+        const data = await response.json();
+        const transformedPlayers = (data.players || [])
+          .map(transformPlayerFromAPI)
+          .map(enrichPlayerForAttributeGroups);
+        setPlayers(transformedPlayers);
+        if (transformedPlayers.length > 0) {
+          setSelectedPlayerId(transformedPlayers[0].id);
+        }
+      } catch (error) {
+        console.error('Error fetching players:', error);
+        // Fallback to sample data if API fails
+        const fallbackPlayers = SAMPLE_PLAYERS.map(enrichPlayerForAttributeGroups);
+        setPlayers(fallbackPlayers);
+        if (fallbackPlayers.length > 0) {
+          setSelectedPlayerId(fallbackPlayers[0].id);
+        }
+      } finally {
+        setPlayersLoading(false);
+      }
+    };
+    fetchPlayers();
+  }, []);
 
 
   // Shared interactive state (Phase 2): profile actions + realism
