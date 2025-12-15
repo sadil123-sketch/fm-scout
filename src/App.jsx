@@ -3580,15 +3580,14 @@ const visibleAttrGroups = defaultAttrGroups;
             'Gets Into Opposition Area',
           ].filter(() => hash01(`${player.id}:move${Math.random()}`) > 0.3);
           
-          const longFormPositions = ['GK', 'D(L)', 'D(C)', 'D(R)', 'WB(L)', 'WB(R)', 'DM', 'M(L)', 'M(C)', 'M(R)', 'AM(L)', 'AM(C)', 'AM(R)', 'ST(C)'];
-          const sortedPositions = longFormPositions
+          const positionOrder = ['ST(C)', 'AM(L)', 'AM(C)', 'AM(R)', 'M(L)', 'M(C)', 'M(R)', 'WB(L)', 'DM', 'WB(R)', 'D(L)', 'D(C)', 'D(R)', 'GK'];
+          const sortedPositions = positionOrder
             .map((pos) => {
               const rating = positionRatings[pos] ?? 0;
               const currentVal = currentRatings[pos] ?? 0;
               const potentialVal = potentialRatings[pos] ?? 0;
               return { pos, rating, currentVal, potentialVal, label: POSITION_MAP[pos]?.label || pos };
-            })
-            .sort((a, b) => b.rating - a.rating);
+            });
           
           const selectedPosData = POSITION_MAP[selectedPosition] || null;
           
