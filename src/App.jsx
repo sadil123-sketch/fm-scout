@@ -3107,12 +3107,6 @@ const visibleAttrGroups = defaultAttrGroups;
                     {player.details?.condition ?? '—'}%
                   </span>
                 </div>
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${dark ? 'bg-slate-700/50' : 'bg-slate-100'}`}>
-                  <span className={`text-xs ${muted}`}>Best Rating</span>
-                  <span className={`text-sm font-semibold text-blue-400`}>
-                    {player.details?.bestRating?.position ?? '—'} {player.details?.bestRating?.value?.toFixed(1) ?? '—'}%
-                  </span>
-                </div>
               </div>
 
             </div>
@@ -3190,7 +3184,7 @@ const visibleAttrGroups = defaultAttrGroups;
       <div className="flex-1 overflow-auto p-6">
         {activeTab === 'overview' && (
           <div className="space-y-5">
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-6 gap-4">
               <Card dark={dark} className="p-4">
                 <div className="flex items-center justify-between mb-1">
                   <div className={`text-xs ${muted}`}>Value</div>
@@ -3218,6 +3212,15 @@ const visibleAttrGroups = defaultAttrGroups;
                 </div>
                 <div className={`text-lg font-bold ${text}`}>{player.foot || '—'}</div>
                 <div className={`text-xs ${muted}`}>Weak Foot: {player.weakFoot ? '★'.repeat(player.weakFoot) + '☆'.repeat(5 - player.weakFoot) : '—'}</div>
+              </Card>
+
+              <Card dark={dark} className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className={`text-xs ${muted}`}>Best Rating</div>
+                  <Trophy size={16} className="text-blue-500" />
+                </div>
+                <div className={`text-lg font-bold text-blue-400`}>{player.details?.bestRating?.position ?? '—'}</div>
+                <div className={`text-xs ${muted}`}>{player.details?.bestRating?.value?.toFixed(1) ?? '—'}%</div>
               </Card>
 
               <Card dark={dark} className="p-4">
