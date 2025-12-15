@@ -3711,20 +3711,20 @@ const visibleAttrGroups = defaultAttrGroups;
                   </div>
                 </div>
                 
+                {selectedPosData && (
+                  <div className={`mb-4 p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
+                    <div className={`text-xs ${muted}`}>Selected</div>
+                    <div className={`text-sm font-semibold ${text}`}>{selectedPosData.label}</div>
+                    <div className={`text-xs ${muted} mt-1`}>Rating: {positionRatings[selectedPosition]}</div>
+                  </div>
+                )}
+                
                 <FootballPitch 
                   positionRatings={positionRatings}
                   selectedPosition={selectedPosition}
                   onSelectPosition={(pos) => setSelectedPosition(prev => prev === pos ? null : pos)}
                   dark={dark}
                 />
-                
-                {selectedPosData && (
-                  <div className={`mt-4 p-3 rounded-xl border ${border} ${dark ? 'bg-slate-900/20' : 'bg-slate-50'}`}>
-                    <div className={`text-xs ${muted}`}>Selected</div>
-                    <div className={`text-sm font-semibold ${text}`}>{selectedPosData.label}</div>
-                    <div className={`text-xs ${muted} mt-1`}>Rating: {positionRatings[selectedPosition]}</div>
-                  </div>
-                )}
               </Card>
               
               {/* Role Rating Panel - Shows by default using player's position or selected position */}
