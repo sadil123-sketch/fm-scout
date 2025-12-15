@@ -489,20 +489,20 @@ const GKIcon = ({ size = 16, className = '' }) => (
 // Position Map for Football Pitch Visualization
 // ============================================
 const POSITION_MAP = {
-  'GK': { x: 50, y: 92, label: 'Goalkeeper', shortLabel: 'GK' },
-  'D(L)': { x: 20, y: 78, label: 'Defender (Left)', shortLabel: 'DL' },
-  'D(C)': { x: 50, y: 78, label: 'Defender (Centre)', shortLabel: 'DC' },
-  'D(R)': { x: 80, y: 78, label: 'Defender (Right)', shortLabel: 'DR' },
-  'WB(L)': { x: 20, y: 58, label: 'Wing Back (Left)', shortLabel: 'WBL' },
-  'WB(R)': { x: 80, y: 58, label: 'Wing Back (Right)', shortLabel: 'WBR' },
-  'DM': { x: 50, y: 58, label: 'Defensive Midfielder', shortLabel: 'DM' },
-  'M(L)': { x: 20, y: 43, label: 'Midfielder (Left)', shortLabel: 'ML' },
-  'M(C)': { x: 50, y: 43, label: 'Midfielder (Centre)', shortLabel: 'MC' },
-  'M(R)': { x: 80, y: 43, label: 'Midfielder (Right)', shortLabel: 'MR' },
-  'AM(L)': { x: 20, y: 28, label: 'Attacking Midfielder (Left)', shortLabel: 'AML' },
-  'AM(C)': { x: 50, y: 28, label: 'Attacking Midfielder (Centre)', shortLabel: 'AMC' },
-  'AM(R)': { x: 80, y: 28, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
-  'ST(C)': { x: 50, y: 12, label: 'Striker', shortLabel: 'ST' },
+  'GK': { x: 50, y: 93, label: 'Goalkeeper', shortLabel: 'GK' },
+  'D(L)': { x: 15, y: 80, label: 'Defender (Left)', shortLabel: 'DL' },
+  'D(C)': { x: 50, y: 80, label: 'Defender (Centre)', shortLabel: 'DC' },
+  'D(R)': { x: 85, y: 80, label: 'Defender (Right)', shortLabel: 'DR' },
+  'WB(L)': { x: 15, y: 62, label: 'Wing Back (Left)', shortLabel: 'WBL' },
+  'WB(R)': { x: 85, y: 62, label: 'Wing Back (Right)', shortLabel: 'WBR' },
+  'DM': { x: 50, y: 62, label: 'Defensive Midfielder', shortLabel: 'DM' },
+  'M(L)': { x: 15, y: 46, label: 'Midfielder (Left)', shortLabel: 'ML' },
+  'M(C)': { x: 50, y: 46, label: 'Midfielder (Centre)', shortLabel: 'MC' },
+  'M(R)': { x: 85, y: 46, label: 'Midfielder (Right)', shortLabel: 'MR' },
+  'AM(L)': { x: 15, y: 30, label: 'Attacking Midfielder (Left)', shortLabel: 'AML' },
+  'AM(C)': { x: 50, y: 30, label: 'Attacking Midfielder (Centre)', shortLabel: 'AMC' },
+  'AM(R)': { x: 85, y: 30, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
+  'ST(C)': { x: 50, y: 14, label: 'Striker', shortLabel: 'ST' },
 };
 
 const POSITION_TO_GROUP = {
