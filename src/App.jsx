@@ -546,6 +546,25 @@ const POSITION_TO_GROUP = {
   'ST': 'ST',
 };
 
+const POSITION_KEY_ALIASES = {
+  'D(L)': 'DL', 'D(C)': 'DC', 'D(R)': 'DR',
+  'WB(L)': 'WBL', 'WB(R)': 'WBR',
+  'M(L)': 'ML', 'M(C)': 'MC', 'M(R)': 'MR',
+  'AM(L)': 'AML', 'AM(C)': 'AMC', 'AM(R)': 'AMR',
+  'ST(C)': 'ST',
+  'DL': 'D(L)', 'DC': 'D(C)', 'DR': 'D(R)',
+  'WBL': 'WB(L)', 'WBR': 'WB(R)',
+  'ML': 'M(L)', 'MC': 'M(C)', 'MR': 'M(R)',
+  'AML': 'AM(L)', 'AMC': 'AM(C)', 'AMR': 'AM(R)',
+  'ST': 'ST(C)',
+};
+
+const positionKeysMatch = (key1, key2) => {
+  if (!key1 || !key2) return false;
+  if (key1 === key2) return true;
+  return POSITION_KEY_ALIASES[key1] === key2 || POSITION_KEY_ALIASES[key2] === key1;
+};
+
 const getRoleFitColor = (score) => {
   if (score >= 15) return { text: 'text-emerald-400', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' };
   if (score >= 12) return { text: 'text-green-400', bg: 'bg-green-500/15', border: 'border-green-500/30' };
@@ -691,7 +710,7 @@ const FootballPitch = ({ positionRatings = {}, selectedPosition, onSelectPositio
         {Object.entries(POSITION_MAP).map(([posKey, pos]) => {
           const rating = positionRatings[posKey] ?? 0;
           const colors = getPositionColor(rating);
-          const isSelected = selectedPosition === posKey;
+          const isSelected = positionKeysMatch(selectedPosition, posKey);
           const cx = pos.x;
           const cy = pos.y * 1.3;
           
@@ -3622,9 +3641,9 @@ const visibleAttrGroups = defaultAttrGroups;
                       return (
                         <button
                           key={pos}
-                          onClick={() => setSelectedPosition(prev => prev === pos ? null : pos)}
+                          onClick={() => setSelectedPosition(prev => positionKeysMatch(prev, pos) ? null : pos)}
                           className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
-                            selectedPosition === pos 
+                            positionKeysMatch(selectedPosition, pos) 
                               ? 'bg-blue-500/15 border border-blue-500/30' 
                               : `${dark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-100'}`
                           }`}
