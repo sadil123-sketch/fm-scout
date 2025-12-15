@@ -1,6 +1,6 @@
 # FM Scout
 
-A React + Vite UI/UX prototype for the FM Scout redesign. This project implements a modern, intuitive interface for Football Manager companion tools, featuring player/staff/club exploration, shortlist management, custom ratings, and "g" Edition premium features.
+A React + Vite UI/UX prototype for the FM Scout redesign. This project implements a modern, intuitive interface for Football Manager companion tools, featuring player/staff/club exploration, shortlist management, custom ratings, and "Premium" Edition premium features.
 
 ## Features
 
