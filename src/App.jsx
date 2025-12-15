@@ -3168,7 +3168,12 @@ const visibleAttrGroups = defaultAttrGroups;
         {mainTabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              if (activeTab === 'positions' && tab.id !== 'positions') {
+                setSelectedPosition(null);
+              }
+              setActiveTab(tab.id);
+            }}
             className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium relative whitespace-nowrap ${activeTab === tab.id ? text : muted}`}
             title={tab.pro ? 'PRO tab (prototype)' : tab.label}
           >
@@ -3192,7 +3197,12 @@ const visibleAttrGroups = defaultAttrGroups;
         {proTab && (
           <button
             key={proTab.id}
-            onClick={() => setActiveTab(proTab.id)}
+            onClick={() => {
+              if (activeTab === 'positions' && proTab.id !== 'positions') {
+                setSelectedPosition(null);
+              }
+              setActiveTab(proTab.id);
+            }}
             className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium relative whitespace-nowrap ${activeTab === proTab.id ? text : muted}`}
             title={proTab.pro ? 'PRO tab (prototype)' : proTab.label}
           >
@@ -3583,7 +3593,7 @@ const visibleAttrGroups = defaultAttrGroups;
                       return (
                         <button
                           key={pos}
-                          onClick={() => setSelectedPosition(pos)}
+                          onClick={() => setSelectedPosition(prev => prev === pos ? null : pos)}
                           className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
                             selectedPosition === pos 
                               ? 'bg-blue-500/15 border border-blue-500/30' 
@@ -3656,7 +3666,7 @@ const visibleAttrGroups = defaultAttrGroups;
                 <FootballPitch 
                   positionRatings={positionRatings}
                   selectedPosition={selectedPosition}
-                  onSelectPosition={setSelectedPosition}
+                  onSelectPosition={(pos) => setSelectedPosition(prev => prev === pos ? null : pos)}
                   dark={dark}
                 />
                 
