@@ -3513,22 +3513,50 @@ const visibleAttrGroups = defaultAttrGroups;
 )}
 
         {activeTab === 'positions' && (() => {
-          const currentRatings = player.positionRatings || {
-            'GK': isGoalkeeperPlayer(player) ? 18 : 1,
-            'D(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DL`) * 8),
-            'D(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DC`) * 8),
-            'D(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:DR`) * 8),
-            'WB(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(8 + hash01(`${player.id}:WBL`) * 10),
-            'WB(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(8 + hash01(`${player.id}:WBR`) * 10),
-            'DM': isGoalkeeperPlayer(player) ? 1 : Math.round(8 + hash01(`${player.id}:DM`) * 10),
-            'M(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:ML`) * 8),
-            'M(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:MC`) * 8),
-            'M(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:MR`) * 8),
-            'AM(L)': isGoalkeeperPlayer(player) ? 1 : Math.round(12 + hash01(`${player.id}:AML`) * 8),
-            'AM(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(12 + hash01(`${player.id}:AMC`) * 8),
-            'AM(R)': isGoalkeeperPlayer(player) ? 1 : Math.round(12 + hash01(`${player.id}:AMR`) * 8),
-            'ST(C)': isGoalkeeperPlayer(player) ? 1 : Math.round(10 + hash01(`${player.id}:ST`) * 10),
+          const isGK = isGoalkeeperPlayer(player);
+          const positionAliases = [
+            ['D(L)', 'DL'], ['D(C)', 'DC'], ['D(R)', 'DR'],
+            ['WB(L)', 'WBL'], ['WB(R)', 'WBR'],
+            ['M(L)', 'ML'], ['M(C)', 'MC'], ['M(R)', 'MR'],
+            ['AM(L)', 'AML'], ['AM(C)', 'AMC'], ['AM(R)', 'AMR'],
+            ['ST(C)', 'ST']
+          ];
+          const defaultRatings = {
+            'GK': isGK ? 18 : 1,
+            'D(L)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:DL`) * 8),
+            'D(C)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:DC`) * 8),
+            'D(R)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:DR`) * 8),
+            'WB(L)': isGK ? 1 : Math.round(8 + hash01(`${player.id}:WBL`) * 10),
+            'WB(R)': isGK ? 1 : Math.round(8 + hash01(`${player.id}:WBR`) * 10),
+            'DM': isGK ? 1 : Math.round(8 + hash01(`${player.id}:DM`) * 10),
+            'M(L)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:ML`) * 8),
+            'M(C)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:MC`) * 8),
+            'M(R)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:MR`) * 8),
+            'AM(L)': isGK ? 1 : Math.round(12 + hash01(`${player.id}:AML`) * 8),
+            'AM(C)': isGK ? 1 : Math.round(12 + hash01(`${player.id}:AMC`) * 8),
+            'AM(R)': isGK ? 1 : Math.round(12 + hash01(`${player.id}:AMR`) * 8),
+            'ST(C)': isGK ? 1 : Math.round(10 + hash01(`${player.id}:ST`) * 10),
           };
+          const inputRatings = player.positionRatings || {};
+          const currentRatings = {};
+          Object.entries(inputRatings).forEach(([key, val]) => {
+            if (val !== undefined) currentRatings[key] = val;
+          });
+          positionAliases.forEach(([longForm, shortForm]) => {
+            const longVal = currentRatings[longForm];
+            const shortVal = currentRatings[shortForm];
+            if (longVal !== undefined && shortVal === undefined) {
+              currentRatings[shortForm] = longVal;
+            } else if (shortVal !== undefined && longVal === undefined) {
+              currentRatings[longForm] = shortVal;
+            }
+          });
+          Object.entries(defaultRatings).forEach(([key, val]) => {
+            if (currentRatings[key] === undefined) currentRatings[key] = val;
+          });
+          positionAliases.forEach(([longForm, shortForm]) => {
+            if (currentRatings[shortForm] === undefined) currentRatings[shortForm] = currentRatings[longForm];
+          });
           
           const ca = player.ca ?? 130;
           const pa = player.pa ?? (ca + Math.round(hash01(`${player.id}:pa`) * 30));
@@ -3552,10 +3580,12 @@ const visibleAttrGroups = defaultAttrGroups;
             'Gets Into Opposition Area',
           ].filter(() => hash01(`${player.id}:move${Math.random()}`) > 0.3);
           
-          const sortedPositions = Object.entries(positionRatings)
-            .map(([pos, rating]) => {
-              const currentVal = currentRatings[pos];
-              const potentialVal = potentialRatings[pos];
+          const longFormPositions = ['GK', 'D(L)', 'D(C)', 'D(R)', 'WB(L)', 'WB(R)', 'DM', 'M(L)', 'M(C)', 'M(R)', 'AM(L)', 'AM(C)', 'AM(R)', 'ST(C)'];
+          const sortedPositions = longFormPositions
+            .map((pos) => {
+              const rating = positionRatings[pos] ?? 0;
+              const currentVal = currentRatings[pos] ?? 0;
+              const potentialVal = potentialRatings[pos] ?? 0;
               return { pos, rating, currentVal, potentialVal, label: POSITION_MAP[pos]?.label || pos };
             })
             .sort((a, b) => b.rating - a.rating);
