@@ -1,6 +1,6 @@
-# FM Genie Scout
+# FM Scout
 
-A React + Vite UI/UX prototype for the FM Genie Scout redesign. This project implements a modern, intuitive interface for Football Manager companion tools, featuring player/staff/club exploration, shortlist management, custom ratings, and "g" Edition premium features.
+A React + Vite UI/UX prototype for the FM Scout redesign. This project implements a modern, intuitive interface for Football Manager companion tools, featuring player/staff/club exploration, shortlist management, custom ratings, and "g" Edition premium features.
 
 ## Features
 
@@ -78,7 +78,7 @@ The rating engine provides phase-aware role fit scoring based on FM26 role defin
 │   ├── 01-user-flows_*.md              # User flow diagrams and specifications
 │   ├── 02-component-specs_*.md         # Component specifications and design system
 │   ├── 03-technical-architecture_*.md  # Technical architecture document
-│   └── FM_Genie_Scout_UIX_*.pdf        # Development document v1.1
+│   └── FM_Scout_UIX_*.pdf        # Development document v1.1
 ├── index.html               # HTML entry point
 ├── vite.config.js           # Vite configuration
 ├── tailwind.config.js       # Tailwind CSS configuration
@@ -92,7 +92,7 @@ The `attached_assets/` directory contains detailed design and technical document
 - **User Flows** (`01-user-flows_*.md`) - Complete user journey mappings including application launch, player/staff/club search, shortlist management, player comparison, and "g" Edition gated flows
 - **Component Specs** (`02-component-specs_*.md`) - Design system foundation with color tokens, typography, spacing, and detailed component specifications for all UI elements
 - **Technical Architecture** (`03-technical-architecture_*.md`) - System architecture for Tauri 2.0 + React implementation, including IPC, state management, and performance optimizations
-- **Development Document** (`FM_Genie_Scout_UIX_*.pdf`) - Comprehensive overview of pain points, feature breakdown, and design recommendations
+- **Development Document** (`FM_Scout_UIX_*.pdf`) - Comprehensive overview of pain points, feature breakdown, and design recommendations
 
 ## Tech Stack
 
