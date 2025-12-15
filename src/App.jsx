@@ -3634,7 +3634,7 @@ const visibleAttrGroups = defaultAttrGroups;
                   <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-2`}>
                     Positions {showPotentialRating && <span className="text-purple-400">(Potential)</span>}
                   </div>
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                  <div className="space-y-1">
                     {sortedPositions.map(({ pos, rating, currentVal, potentialVal, label }) => {
                       const colors = getPositionColor(rating);
                       const growth = potentialVal - currentVal;
