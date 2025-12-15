@@ -503,6 +503,18 @@ const POSITION_MAP = {
   'AM(C)': { x: 50, y: 30, label: 'Attacking Midfielder (Centre)', shortLabel: 'AMC' },
   'AM(R)': { x: 85, y: 30, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
   'ST(C)': { x: 50, y: 14, label: 'Striker', shortLabel: 'ST' },
+  'DL': { x: 15, y: 80, label: 'Defender (Left)', shortLabel: 'DL' },
+  'DC': { x: 50, y: 80, label: 'Defender (Centre)', shortLabel: 'DC' },
+  'DR': { x: 85, y: 80, label: 'Defender (Right)', shortLabel: 'DR' },
+  'WBL': { x: 15, y: 62, label: 'Wing Back (Left)', shortLabel: 'WBL' },
+  'WBR': { x: 85, y: 62, label: 'Wing Back (Right)', shortLabel: 'WBR' },
+  'ML': { x: 15, y: 46, label: 'Midfielder (Left)', shortLabel: 'ML' },
+  'MC': { x: 50, y: 46, label: 'Midfielder (Centre)', shortLabel: 'MC' },
+  'MR': { x: 85, y: 46, label: 'Midfielder (Right)', shortLabel: 'MR' },
+  'AML': { x: 15, y: 30, label: 'Attacking Midfielder (Left)', shortLabel: 'AML' },
+  'AMC': { x: 50, y: 30, label: 'Attacking Midfielder (Centre)', shortLabel: 'AMC' },
+  'AMR': { x: 85, y: 30, label: 'Attacking Midfielder (Right)', shortLabel: 'AMR' },
+  'ST': { x: 50, y: 14, label: 'Striker', shortLabel: 'ST' },
 };
 
 const POSITION_TO_GROUP = {
@@ -520,6 +532,18 @@ const POSITION_TO_GROUP = {
   'AM(C)': 'AM-C',
   'AM(R)': 'AM-LR',
   'ST(C)': 'ST',
+  'DL': 'D-LR',
+  'DC': 'D-C',
+  'DR': 'D-LR',
+  'WBL': 'WB-LR',
+  'WBR': 'WB-LR',
+  'ML': 'M-LR',
+  'MC': 'M-C',
+  'MR': 'M-LR',
+  'AML': 'AM-LR',
+  'AMC': 'AM-C',
+  'AMR': 'AM-LR',
+  'ST': 'ST',
 };
 
 const getRoleFitColor = (score) => {
