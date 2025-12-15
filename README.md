@@ -13,7 +13,7 @@ A React + Vite UI/UX prototype for the FM Scout redesign. This project implement
 - **History Points** - Track player development over time
 - **Comparison Tool** - Compare multiple players side-by-side
 - **Role Fit System** - FM26 phase-aware role scoring (IP/OOP)
-- **"g" Edition Features** - Top Lists, Role Finder, Squad Gap Analyzer, and more
+- **"Premium" Edition Features** - Top Lists, Role Finder, Squad Gap Analyzer, and more
 
 ## Rating Engine (FM26)
 
