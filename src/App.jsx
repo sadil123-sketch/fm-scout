@@ -3645,9 +3645,10 @@ const visibleAttrGroups = defaultAttrGroups;
                 )}
               </Card>
               
-              {/* Role Rating Panel */}
-              {selectedPosition && (() => {
-                const posGroup = POSITION_TO_GROUP[selectedPosition];
+              {/* Role Rating Panel - Shows by default using player's position or selected position */}
+              {(() => {
+                const effectivePosition = selectedPosition || player.pos;
+                const posGroup = POSITION_TO_GROUP[effectivePosition];
                 if (!posGroup) return null;
                 
                 const ipRoles = getRolesByPhaseAndGroup('IP', posGroup);
@@ -3658,25 +3659,27 @@ const visibleAttrGroups = defaultAttrGroups;
                 const ipRoleFits = ipRoles.map(role => {
                   const fit = computeRoleFit(role, playerAttrs, DEFAULT_RATING_ENGINE_SETTINGS);
                   return { ...role, fit: fit.score };
-                }).sort((a, b) => b.fit - a.fit);
+                }).sort((a, b) => b.fit - a.fit).slice(0, 5);
                 
                 const oopRoleFits = oopRoles.map(role => {
                   const fit = computeRoleFit(role, playerAttrs, DEFAULT_RATING_ENGINE_SETTINGS);
                   return { ...role, fit: fit.score };
-                }).sort((a, b) => b.fit - a.fit);
+                }).sort((a, b) => b.fit - a.fit).slice(0, 5);
+                
+                const positionLabel = POSITION_MAP[effectivePosition]?.label || effectivePosition;
                 
                 return (
                   <Card dark={dark} className="p-5 lg:col-span-2">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className={`font-semibold ${text}`}>Role Rating</h3>
-                        <div className={`text-xs ${muted}`}>{POSITION_MAP[selectedPosition]?.label}</div>
+                        <div className={`text-xs ${muted}`}>{positionLabel}</div>
                       </div>
                       <Badge variant="primary" size="sm">FM26</Badge>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
-                      {/* In Possession Roles */}
+                      {/* In Possession Roles - Top 5 */}
                       <div>
                         <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-3 flex items-center gap-2`}>
                           <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -3711,7 +3714,7 @@ const visibleAttrGroups = defaultAttrGroups;
                         </div>
                       </div>
                       
-                      {/* Out of Possession Roles */}
+                      {/* Out of Possession Roles - Top 5 */}
                       <div>
                         <div className={`text-xs font-medium ${muted} uppercase tracking-wider mb-3 flex items-center gap-2`}>
                           <span className="w-2 h-2 rounded-full bg-rose-500"></span>
